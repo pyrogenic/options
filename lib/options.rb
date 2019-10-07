@@ -126,8 +126,35 @@ class Options
     result unless result.empty?
   end
 
-  attr_reader :aliases
-  def initialize(aliases: {})
+  attr_reader :aliases, :pattern
+  def initialize(pattern: {}, aliases: {})
     @aliases = aliases.freeze
+    @pattern = pattern.freeze
+  end
+
+  def parse(*args, **kwargs)
+    @parsed = Options.parse(*args, aliases: aliases, **kwargs)
+    @values = @parsed[:flags]
+    @literals = nil
+    expected_prologue = @pattern[:prologue] || []
+    parsed_prologue = @parsed[:prologue] || []
+    # expected_prologue.group_by { |s| /(?:(?<optional>\?)|(?<required>\!))$/ =~ s ? optional ? :optional : required ? :required : :normal }
+    raise "Missing positional arguments for #{expected_prologue.slice(parsed_prologue.length)}" if expected_prologue.length > parsed_prologue.length
+
+    @values.reverse_merge(expected_prologue.zip(parsed_prologue).to_h)
+    epilogue_key = @pattern[:epilogue]
+    @values[epilogue_key] = @parsed[:epilogue] if epilogue_key
+  end
+
+  def method_missing(sym)
+    raise 'unparsed' unless @parsed
+    
+    /^(?<key>.*?)(?:(?<boolean>\?)|(?<required>\!))?$/ =~ sym
+    raise KeyError(key) if required && !@values.contains(key)
+
+    value = @values[key]
+    return !(!value) if boolean
+
+    value
   end
 end
