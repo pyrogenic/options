@@ -6,7 +6,7 @@ class Options
     sym.to_s.gsub('_', '-')
   end
 
-  def self.parse(*args, aliases: {}, **kwargs)
+  def self.to_argv(*args, **kwargs)
     args.map! do |arg|
       case arg
       when Symbol
@@ -16,19 +16,26 @@ class Options
       end
     end
     kwargs.each do |arg, value|
-      case value
-      when TrueClass
-        args << "--#{to_arg(arg)}"
-      when FalseClass
-        args << "--no-#{to_arg(arg)}"
-      when Array
-        value.each do |v|
-          args << "--#{to_arg(arg)}=#{v}"
-        end
-      else
-        arg
-      end
+      converted = case value
+                  when TrueClass
+                    "--#{to_arg(arg)}"
+                  when FalseClass
+                    "--no-#{to_arg(arg)}"
+                  when Array
+                    value.map do |v|
+                      "--#{to_arg(arg)}=#{v}"
+                    end
+                  else
+                    "--#{to_arg(arg)}=#{value}"
+                  end
+      args.concat(Array(converted))
     end
+    args
+  end
+
+  def self.parse(*args_or_argv, aliases: {}, **kwargs)
+    argv = to_argv(*args_or_argv, **kwargs)
+
     literal_only = false
     prologue = []
     epilogue = []
@@ -43,7 +50,7 @@ class Options
       aliases[sym] || sym
     end
 
-    args.each do |arg|
+    argv.each do |arg|
       if literal_only
         epilogue << arg
         next
@@ -92,9 +99,10 @@ class Options
           case flags[sym]
           when nil
             flags[sym] = value
+          when Array
+            flags[sym] << value
           else
-            raise 'Unexpected value flag after value set:' \
-                  " #{arg} after set to #{flags[sym]}"
+            flags[sym] = [flags[sym], value]
           end
         end
 
@@ -111,8 +119,9 @@ class Options
           last_sym_pending = nil
         elsif flags.empty?
           prologue << arg
-        else
-          raise "Unexpected literal: #{arg}"
+        else # first non-switch after switches + values
+          literal_only = true
+          epilogue << arg
         end
       end
       next if arg.nil?

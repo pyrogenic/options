@@ -7,3 +7,6 @@ git_source(:github) {|repo_name| "https://github.com/#{repo_name}" }
 # gem "rails"
 
 gem "rspec", "~> 3.8"
+gem "simplecov"
+
+gem "solargraph", "~> 0.37.2"

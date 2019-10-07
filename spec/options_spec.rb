@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'spec_helper'
 require 'options'
 
 RSpec.describe Options do
@@ -19,12 +20,28 @@ RSpec.describe Options do
   it 'flag' do
     expect(described_class.parse('-f')).to match(flags: { f: true })
     expect(described_class.parse('-f', '-f')).to match(flags: { f: 2 })
+    expect(described_class.parse('-f', '-f', '-f')).to match(flags: { f: 3 })
   end
   it 'long-flag' do
     expect(described_class.parse('--flag')).to match(flags: { flag: true })
-    expect(described_class.parse(:flag)).to match(flags: { flag: true })
     expect(described_class.parse('--flag', '--flag')).to match(flags: { flag: 2 })
-    expect(described_class.parse(:flag, :flag)).to match(flags: { flag: 2 })
+    expect(described_class.parse('--flag', '--flag', '--flag')).to match(flags: { flag: 3 })
+  end
+  context 'long-flag' do
+    it 'alone' do
+      expect(described_class.parse('--flag=example')).to match(flags: { flag: 'example' })
+      expect(described_class.parse('--flag', 'example')).to match(flags: { flag: 'example' })
+      expect(described_class.parse('--flag', 'example', '--flag', 'another')).to match(flags: { flag: ['example', 'another'] })
+      expect(described_class.parse('--flag', 'example', 'another')).to match(flags: { flag: ['example', 'another'] })
+      expect(described_class.parse('--flag', 'example', '--flag', 'another', '--flag', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
+      expect(described_class.parse('--flag', 'example', 'another', '--flag', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
+      expect(described_class.parse('--flag', 'example', '--flag', 'another', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
+      expect(described_class.parse('--flag', 'example', 'another', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
+    end
+    it 'with epilog' do
+      expect(described_class.parse('--flag=example', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: ['another', 'example'])
+      expect(described_class.parse('--flag', 'example', '--', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: ['another', 'example'])
+    end
   end
   it 'inversion' do
     expect(described_class.parse('--no-flag')).to match(flags: { flag: false })
@@ -40,6 +57,28 @@ RSpec.describe Options do
     expect(described_class.parse('-f', aliases: aliases)).to match(flags: { flag: true })
     expect(described_class.parse('-f', '-f', aliases: aliases)).to match(flags: { flag: 2 })
     expect(described_class.parse('--flag', '-f', aliases: aliases)).to match(flags: { flag: 2 })
+  end
+  shared_examples_for 'IRB' do |args, kwargs, argv, parse_result|
+    it 'to_argv' do
+      expect(described_class.to_argv(*args, **kwargs)).to eq(argv)
+    end
+    it 'parse' do
+      expect(described_class.parse(*args, **kwargs)).to match(parse_result)
+    end
+  end
+  context 'args' do
+    it_behaves_like('IRB', [:flag], {}, ['--flag'], flags: { flag: true })
+    it_behaves_like('IRB', [:flag, :flag], {}, ['--flag', '--flag'], flags: { flag: 2 })
+  end
+  context 'kwargs' do
+    it_behaves_like('IRB', [], { flag: true }, ['--flag'], { flags: { flag: true } })
+    it_behaves_like('IRB', [], { flag: 'example' }, ['--flag=example'], { flags: { flag: 'example' } })
+    it_behaves_like('IRB', [], { flag: ['example'] }, ['--flag=example'], { flags: { flag: 'example' } })
+    it_behaves_like('IRB', [], { flag: ['example', 'another'] }, ['--flag=example', '--flag=another'], { flags: { flag: ['example', 'another'] } })
+  end
+  context 'both' do
+    it_behaves_like('IRB', [:flag], { flag: true }, ['--flag', '--flag'], flags: { flag: 2 })
+    it_behaves_like('IRB', [:flag, :flag], { flag: false }, ['--flag', '--flag', '--no-flag'], flags: { flag: false })
   end
   context 'error conditions' do
     it 'flag after value' do
