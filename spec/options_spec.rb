@@ -2,6 +2,7 @@
 
 require 'spec_helper'
 require 'options'
+require 'pp'
 
 RSpec.describe Options do
   let(:aliases) { { f: :flag } }
@@ -146,12 +147,12 @@ RSpec.describe Options do
   context 'config' do
     let(:prologue) { nil }
     let(:flag_configs) { nil }
-    let(:epilogue_key) { nil }
+    let(:epilogue) { nil }
     let(:options) do
       args = {}
       args[:prologue] = prologue unless prologue.nil?
       args[:flag_configs] = flag_configs unless flag_configs.nil?
-      args[:epilogue_key] = epilogue_key unless epilogue_key.nil?
+      args[:epilogue] = epilogue unless epilogue.nil?
       described_class.new(**args)
     end
 
@@ -169,8 +170,9 @@ RSpec.describe Options do
         expect(options.parse).to be(options)
       end
 
-      it 'unexpected epilogue' do
-        expect { options.parse('anything') }.to raise_error(/unexpected/i)
+      it 'prologue' do
+        expect { options.parse(['anything']) }.to change(options, :valid?).from(false).to(true)
+        expect(options.prologue).to eq(['anything'])
       end
     end
 
@@ -218,13 +220,15 @@ RSpec.describe Options do
       end
 
       context 'without epilogue' do
+        let(:epilogue) { false }
+
         it 'unexpected epilogue' do
-          expect { options.parse('anything', 'extra') }.to raise_error(/unexpected/i)
+          expect { options.parse('anything', '--', 'extra').tap { |v| pp v } }.to raise_error(/unexpected/i)
         end
       end
 
       context 'with epilogue' do
-        let(:epilogue_key) { :etc }
+        let(:epilogue) { :etc }
 
         it 'simple' do
           expect { options.parse('anything', 'extra') }.to change(options, :valid?).from(false).to(true)
@@ -255,7 +259,7 @@ RSpec.describe Options do
         end
 
         context 'with configured flags' do
-          let(:flag_configs) { { read_all_about_it: true } }
+          let(:flag_configs) { { read_all_about_it: :boolean } }
 
           it 'flag-config' do
             expect { options.parse('anything', '--read-all-about-it', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
@@ -282,7 +286,7 @@ RSpec.describe Options do
           context 'with documentation' do
             let(:flag_configs) do
               {
-                read_all_about_it: true,
+                read_all_about_it: :boolean,
                 mode: 'operation mode',
               }
             end

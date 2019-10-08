@@ -87,19 +87,14 @@ class Options
         value = Regexp.last_match[:value]
         no = Regexp.last_match[:no]
         sym = resolve.call(flag)
-        flag_config = case flag_configs[sym]
-                      when true
-                        :boolean
-                      else
-                        flag_configs[sym]
-                      end
+        boolean = boolean?(sym, flag_configs: flag_configs)
         if no
           raise "Unexpected value specified with no- prefix: #{arg}" unless value.nil?
 
           flags[sym] = false
           last_sym = nil
         elsif value.nil?
-          last_sym = flag_config == :boolean ? nil : sym
+          last_sym = boolean ? nil : sym
           case flags[sym]
           when true
             flags[sym] = 2
@@ -111,7 +106,7 @@ class Options
             last_sym_pending = arg
           end
         else
-          raise "Unexpected value for #{inspect_flag(arg)}: #{value.inspect}" if flag_config == :boolean
+          raise "Unexpected value for #{inspect_flag(arg)}: #{value.inspect}" if boolean
 
           last_sym = nil
           case flags[sym]
@@ -159,27 +154,40 @@ class Options
   # @returns Array
   attr_reader :required_prologue
   attr_reader :optional_prologue
+  attr_reader :prologue_key
   attr_reader :flag_configs
+  attr_reader :required_epilogue
+  attr_reader :optional_epilogue
   attr_reader :epilogue_key
 
-  def initialize(prologue: [], flag_configs: {}, epilogue_key: false, aliases: {}, program: nil)
+  def initialize(
+    prologue: true,
+    flag_config: true,
+    flag_configs: nil,
+    epilogue: true,
+    aliases: {},
+    program: nil)
     @program = program || begin
       %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
       file
     end
     @aliases = aliases.freeze
     initialize_prologue(prologue)
-    @flag_configs = flag_configs.freeze
-    @epilogue_key = epilogue_key == true ? :epilogue : epilogue_key
+    @flag_configs = Hash.new(flag_config).merge(flag_configs || {}).freeze
+    initialize_epilogue(epilogue)
     @valid = false
   end
 
   private
 
   def initialize_prologue(prologue)
+    @prologue_key = :prologue if prologue == true
+    @prologue_key = false if prologue == false
+    return unless @prologue_key.nil?
+
     required_prologue = []
     optional_prologue = []
-    prologue.each do |key|
+    Array(prologue).each do |key|
       /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
       key = key.to_sym
       if optional
@@ -194,13 +202,36 @@ class Options
     @optional_prologue = optional_prologue.freeze
   end
 
+  def initialize_epilogue(epilogue)
+    @epilogue_key = :epilogue if epilogue == true
+    @epilogue_key = false if epilogue == false
+    @epilogue_key = epilogue if epilogue.is_a?(Symbol)
+    return unless @epilogue_key.nil?
+
+    required_epilogue = []
+    optional_epilogue = []
+    Array(epilogue).each do |key|
+      /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
+      key = key.to_sym
+      if optional
+        optional_epilogue << key if optional
+      else
+        raise 'required epilogue cannot follow optional epilogue' unless optional_epilogue.empty?
+
+        required_epilogue << key
+      end
+    end
+    @required_epilogue = required_epilogue.freeze
+    @optional_epilogue = optional_epilogue.freeze
+  end
+
   public
 
-  def flag_config(sym)
+  def self.flag_config(sym, flag_configs:)
     flag_config = flag_configs[sym]
     case flag_config
     when true
-      { type: :boolean }
+      { type: :anything }
     when Symbol
       { type: flag_config }
     when nil
@@ -212,27 +243,53 @@ class Options
     end
   end
 
+  def self.flag_type(sym, flag_configs:)
+    config = flag_config(sym, flag_configs: flag_configs)
+    config[:type] if config
+  end
+
+  def self.boolean?(sym, flag_configs:)
+    flag_type(sym, flag_configs: flag_configs) == :boolean
+  end
+
+  def flag_config(sym)
+    Options.flag_config(sym, flag_configs: flag_configs)
+  end
+
   def flag_type(sym)
-    flag_config(sym)[:type]
+    Options.flag_type(sym, flag_configs: flag_configs)
   end
 
   def boolean?(sym)
-    flag_type(sym) == :boolean
+    Options.boolean?(sym, flag_configs: flag_configs)
   end
 
+  def required?(sym)
+    [required_prologue, required_epilogue].map(&method(:Array)).flatten.member?(sym)
+  end
+
+  def optional?(sym)
+    [optional_prologue, optional_epilogue].map(&method(:Array)).flatten.member?(sym)
+  end
+
+  def splat?(sym)
+    [prologue_key, epilogue_key].member?(sym)
+  end
+  
   def inspect_flag(sym)
     arg = Options.kebab(sym)
-    return "#{arg.upcase}" if required_prologue.member?(sym)
-    return "[#{arg.upcase}]" if optional_prologue.member?(sym)
-    return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if epilogue_key == sym
+    return "#{arg.upcase}" if required?(sym)
+    return "[#{arg.upcase}]" if optional?(sym)
+    return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if splat?(sym)
     return "--[no-]#{arg}" if boolean?(sym)
 
     "--#{arg}"
   end
 
   def help
-    prologue_keys = required_prologue + optional_prologue
-    all_flags = prologue_keys + (flag_configs.keys - prologue_keys) + Array(epilogue_key)
+    prologue_keys = [required_prologue, optional_prologue, prologue_key].map(&method(:Array)).flatten
+    epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key].map(&method(:Array)).flatten
+    all_flags = prologue_keys + (flag_configs.keys - prologue_keys) + epilogue_keys
     usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
     lines = all_flags.map do |flag|
       config = flag_config(flag)
@@ -265,8 +322,8 @@ class Options
     parsed_prologue = @parsed[:prologue] || []
 
     validate_sufficient_prologue(parsed_prologue)
-    actual_prologue = apply_prologue(parsed_prologue)
-    apply_epilogue(parsed_prologue, actual_prologue)
+    consumed_prologue = apply_prologue(parsed_prologue)
+    apply_epilogue(parsed_prologue, consumed_prologue)
     @valid = true
     self
   end
@@ -303,6 +360,8 @@ class Options
   # Validate that we have enough arguments given to satisfy our required prologue, taking into account any that were
   # specified as flags.
   def validate_sufficient_prologue(parsed_prologue)
+    return if prologue_key
+
     actual_required_prologue = required_prologue - @values.keys
     return if actual_required_prologue.length <= parsed_prologue.length
 
@@ -310,29 +369,58 @@ class Options
     raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
   end
 
+  # Validate that we have enough arguments given to satisfy our required prologue, taking into account any that were
+  # specified as flags.
+  def validate_sufficient_epilogue(parsed_epilogue)
+    return if epilogue_key
+
+    actual_required_epilogue = required_epilogue - @values.keys
+    return if actual_required_epilogue.length <= parsed_epilogue.length
+
+    missing_flags = actual_required_epilogue.drop(parsed_epilogue.length)
+    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
+  end
+
   # Reverse-merge prologue values into {@link @values}
   # @return [Hash] the recognized prologue flags
   def apply_prologue(parsed_prologue)
+    return @values[prologue_key] = parsed_prologue if prologue_key
+
     # Remove any prologue keys whose values appeared as flags:
     expected_prologue = (required_prologue + optional_prologue) - @values.keys
     # Convert the prologue into a hash based on the prologue keys we're still waiting for:
-    actual_prologue = expected_prologue.zip(parsed_prologue).reject do |_, v|
+    consumed_prologue = expected_prologue.zip(parsed_prologue).reject do |_, v|
       # Avoid nil values since they're never returned from {@link Options.parse}
       v.nil?
     end.to_h
-    @values = actual_prologue.merge(@values)
-    actual_prologue
+    @values = consumed_prologue.merge(@values)
+    consumed_prologue
   end
 
   # Any extra prologue values become the beginning of the epilogue.
+  # Reverse-merge epilogue values into {@link @values}
   # @raise if there's an epilogue given but we don't expect one
   # @see epilogue_key
-  def apply_epilogue(parsed_prologue, actual_prologue)
-    epilogue = parsed_prologue.drop(actual_prologue.length).concat(Array(@parsed[:epilogue]))
-    if epilogue_key
-      @values[epilogue_key] = epilogue
-    else
-      raise "Unexpected epilogue: #{epilogue.inspect}" unless epilogue.empty?
-    end
+  def apply_epilogue(parsed_prologue, consumed_prologue)
+    parsed_epilogue = parsed_prologue.drop(consumed_prologue.length).concat(Array(@parsed[:epilogue]))
+
+    # TODO: allow ... after required/optional consumed
+
+    # Remove any epilogue keys whose values appeared as flags:
+    epilogue_keys = [required_epilogue, optional_epilogue].map(&method(:Array)).flatten
+    expected_epilogue = epilogue_keys - @values.keys
+    # Convert the epilogue into a hash based on the epilogue keys we're still waiting for:
+    consumed_epilogue = expected_epilogue.zip(parsed_epilogue).reject do |_, v|
+      # Avoid nil values since they're never returned from {@link Options.parse}
+      v.nil?
+    end.to_h
+    @values = consumed_epilogue.merge(@values)
+
+    epilogue = parsed_epilogue.drop(consumed_epilogue.length)
+    return if epilogue.empty?
+    raise "Unexpected epilogue: #{epilogue.inspect}" unless epilogue_key
+
+    @values[epilogue_key] = epilogue
+    nil
   end
 end

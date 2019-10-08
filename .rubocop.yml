@@ -5,6 +5,8 @@ Style/TrailingCommaInHashLiteral:
   EnforcedStyleForMultiline: comma
 Style/TrailingCommaInArguments:
   EnforcedStyleForMultiline: comma
+Layout/MultilineMethodDefinitionBraceLayout:
+  Enabled: false
 
 # Metrics/AbcSize:
 #   Enabled: false
