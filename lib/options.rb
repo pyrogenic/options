@@ -188,18 +188,56 @@ class Options
 
   public
 
+  def flag_config(sym)
+    flag_config = flag_configs[sym]
+    case flag_config
+    when true
+      { type: :boolean }
+    when Symbol
+      { type: flag_config }
+    when nil
+    when String
+      { help: flag_config }
+    else
+      flag_config
+    end
+  end
+  
+  def flag_type(sym)
+    flag_config(sym)[:type]
+  end
+
+  def boolean?(sym)
+    flag_type(sym) == :boolean
+  end
+
   def inspect_flag(sym)
     return "#{sym.upcase}" if required_prologue.member?(sym)
     return "[#{sym.upcase}]" if optional_prologue.member?(sym)
     return "[#{sym.to_s.upcase} ... [#{sym.to_s.upcase}]]" if epilogue_key == sym
+    return "--[no-]#{sym}" if boolean?(sym)
 
     "--#{sym}"
   end
 
   def help
-    all_flags = required_prologue + optional_prologue + flag_configs.keys + Array(epilogue_key)
-    lines = []
-    lines << "Usage: #{@program} #{all_flags.map(&method(:inspect_flag))}"
+    prologue_keys = required_prologue + optional_prologue
+    all_flags = prologue_keys + (flag_configs.keys - prologue_keys) + Array(epilogue_key)
+    usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
+    lines = all_flags.map do |flag|
+      config = flag_config(flag)
+      next if config.nil?
+      flag_help = config[:help] || case config[:type]
+                                   when :boolean
+                                     'switch'
+                                   else
+                                   end
+      [inspect_flag(flag), flag_help] if flag_help
+    end.compact
+    return [usage] if lines.empty?
+    width = lines.map(&:first).tap { |r| puts(r.inspect)}.map(&:length).max
+    lines.map! { |line| format("  %-#{width}s : %s", *line) }
+    [usage, nil] + lines
   end
 
   def valid?

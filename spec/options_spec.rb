@@ -208,12 +208,33 @@ RSpec.describe Options do
             expect(options.etc).to eq(%w[extra extra])
           end
 
-          it :help do
+          def expect_usage
             help = options.help
             puts help
-            expect(help.first).to match(/^Usage: #{Pathname(__FILE__).basename}/)
-            expect(help.first).to match(/MODE/)
-            expect(help.first).to match(/\[ETC/)
+            usage_line = help.shift
+            expect(usage_line).to match(/^Usage: #{Pathname(__FILE__).basename}/)
+            expect(usage_line).to match(/MODE/)
+            expect(usage_line).to match(/\[ETC/)
+            
+            expect(help.shift).to be_nil.or(match(/^$/))
+            help
+          end
+          
+          it :help do
+            expect_usage
+          end
+
+          context 'with documentation' do
+            let(:flag_configs) do
+              {
+                read_all_about_it: true,
+                mode: 'operation mode',
+              } 
+            end
+            it 'help' do
+              help = expect_usage
+              expect(help).to include(/MODE.*/)
+            end
           end
         end
       end
