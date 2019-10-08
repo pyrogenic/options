@@ -165,6 +165,10 @@ RSpec.describe Options do
         expect { options.parse }.to raise_error(/frozen/i)
       end
 
+      it '#parse returns self' do
+        expect(options.parse).to be(options)
+      end
+
       it 'unexpected epilogue' do
         expect { options.parse('anything') }.to raise_error(/unexpected/i)
       end

@@ -268,6 +268,7 @@ class Options
     actual_prologue = apply_prologue(parsed_prologue)
     apply_epilogue(parsed_prologue, actual_prologue)
     @valid = true
+    self
   end
 
   # @return if the given key is a known flag that should appear as part of the object's API
