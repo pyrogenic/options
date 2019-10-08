@@ -231,10 +231,29 @@ RSpec.describe Options do
                 mode: 'operation mode',
               }
             end
+
             it 'help' do
               help = expect_usage
               expect(help).to include(/MODE/)
               expect(help).to include(/--\[no-\]read-all-about-it/)
+            end
+
+            context 'better help' do
+              let(:flag_configs) do
+                {
+                  read_all_about_it: {
+                    type: :boolean,
+                    help: 'actually read stuff',
+                  },
+                  mode: 'operation mode',
+                }
+              end  
+
+              it 'help' do
+                help = expect_usage
+                expect(help).to include(/MODE/)
+                expect(help).to include(/--\[no-\]read-all-about-it.*actually read stuff/)
+              end
             end
           end
         end
