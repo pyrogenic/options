@@ -229,7 +229,7 @@ RSpec.describe Options do
               {
                 read_all_about_it: true,
                 mode: 'operation mode',
-              } 
+              }
             end
             it 'help' do
               help = expect_usage

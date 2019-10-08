@@ -235,7 +235,7 @@ class Options
       [inspect_flag(flag), flag_help] if flag_help
     end.compact
     return [usage] if lines.empty?
-    width = lines.map(&:first).tap { |r| puts(r.inspect)}.map(&:length).max
+    width = lines.map(&:first).map(&:length).max
     lines.map! { |line| format("  %-#{width}s : %s", *line) }
     [usage, nil] + lines
   end
