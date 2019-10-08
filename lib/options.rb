@@ -159,12 +159,13 @@ class Options
     optional_prologue = []
     prologue.each do |key|
       /^(?<key>[[:alnum:]]*)(?<optional>\?)?$/ =~ key
+      key = key.to_sym
       if optional
         optional_prologue << key if optional
       else
         raise 'required prologue cannot follow optional prologue' unless optional_prologue.empty?
 
-        required_prologue << key if required
+        required_prologue << key
       end
     end
     @required_prologue = required_prologue.freeze
@@ -172,6 +173,13 @@ class Options
   end
 
   public
+
+  def inspect_flag(sym)
+    return "<#{sym}>" if required_prologue.member?(sym)
+    return "[#{sym}]" if optional_prologue.member?(sym)
+
+    "--#{sym}"
+  end
 
   def valid?
     @valid
@@ -185,7 +193,8 @@ class Options
     parsed_prologue = @parsed[:prologue] || []
     actual_required_prologue = required_prologue - @values.keys
     if actual_required_prologue.length > parsed_prologue.length
-      raise "Missing positional arguments for #{actual_required_prologue.slice(parsed_prologue.length)}"
+      missing_flags = actual_required_prologue.drop(parsed_prologue.length)
+      raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
     end
 
     expected_prologue = (required_prologue + optional_prologue) - @values.keys
@@ -193,9 +202,9 @@ class Options
       # Avoid nil values since they're never returned from {@link Options.parse}
       v.nil?
     end.to_h
+    puts(parsed_prologue: parsed_prologue, required_prologue: required_prologue, actual_required_prologue: actual_required_prologue, expected_prologue: expected_prologue, actual_prologue: actual_prologue)
     @values = actual_prologue.merge(@values)
-    epilogue = Array(parsed_prologue.slice(actual_prologue.length)).concat(Array(@parsed[:epilogue]))
-    puts(required_prologue: required_prologue, optional_prologue: optional_prologue, expected_prologue: expected_prologue, actual_prologue: actual_prologue, epilogue: epilogue)
+    epilogue = parsed_prologue.drop(actual_prologue.length).concat(Array(@parsed[:epilogue]))
     if epilogue_key
       @values[epilogue_key] = epilogue
     else
@@ -206,8 +215,8 @@ class Options
 
   def respond_to_missing?(sym, *_)
     /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
-
-    return super unless @values.contains?(key) || @flag_configs.contains?(key)
+    key = key.to_sym
+    return super unless @values.member?(key) || @flag_configs.member?(key)
 
     true
   end
@@ -216,7 +225,8 @@ class Options
     return super unless @parsed
 
     /^(?<key>.*?)(?:(?<boolean>\?))?$/ =~ sym
-    return super unless @values.contains?(key) || @flag_configs.contains?(key)
+    key = key.to_sym
+    return super unless @values.member?(key) || @flag_configs.member?(key)
 
     value = @values[key]
     return !(!value) if boolean

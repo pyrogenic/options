@@ -116,5 +116,34 @@ RSpec.describe Options do
         expect { options.parse('anything') }.to raise_error(/unexpected/i)
       end
     end
+
+    context 'prologue' do
+      let(:prologue) { [:mode] }
+
+      it 'empty' do
+        expect { options.parse }.to raise_error(/positional.*mode/i)
+      end
+
+      it 'valid' do
+        expect { options.parse('anything') }.to change(options, :valid?).from(false).to(true)
+        expect { options.parse }.to raise_error(/frozen/i)
+
+        expect(options.mode).to eq('anything')
+      end
+
+      context 'without epilogue' do
+        it 'unexpected epilogue' do
+          expect { options.parse('anything', 'extra') }.to raise_error(/unexpected/i)
+        end
+      end
+
+      context 'with epilogue' do
+        let(:epilogue_key) { :etc }
+        it 'epilogue' do
+          expect { options.parse('anything', 'extra') }.to change(options, :valid?).from(false).to(true)
+          expect(options.etc).to eq(['extra'])
+        end
+      end
+    end
   end
 end
