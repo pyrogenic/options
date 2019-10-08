@@ -60,7 +60,7 @@ class Options
         literal_only = true
         last_sym = nil
       when /^-([[:alnum:]])$/
-        last_sym = sym = resolve.call($1)
+        last_sym = sym = resolve.call(Regexp.last_match(1))
         case flags[sym]
         when true
           flags[sym] = 2
@@ -135,31 +135,88 @@ class Options
     result unless result.empty?
   end
 
-  attr_reader :aliases, :pattern
-  def initialize(pattern: {}, aliases: {})
+  # @return Hash
+  attr_reader :aliases
+
+  # @returns Array
+  attr_reader :required_prologue
+  attr_reader :optional_prologue
+  attr_reader :flag_configs
+  attr_reader :epilogue_key
+
+  def initialize(prologue: [], flag_configs: {}, epilogue_key: false, aliases: {})
     @aliases = aliases.freeze
-    @pattern = pattern.freeze
+    initialize_prologue(prologue)
+    @flag_configs = flag_configs.freeze
+    @epilogue_key = epilogue_key == true ? :epilogue : epilogue_key
+    @valid = false
+  end
+
+  private
+
+  def initialize_prologue(prologue)
+    required_prologue = []
+    optional_prologue = []
+    prologue.each do |key|
+      /^(?<key>[[:alnum:]]*)(?<optional>\?)?$/ =~ key
+      if optional
+        optional_prologue << key if optional
+      else
+        raise 'required prologue cannot follow optional prologue' unless optional_prologue.empty?
+
+        required_prologue << key if required
+      end
+    end
+    @required_prologue = required_prologue.freeze
+    @optional_prologue = optional_prologue.freeze
+  end
+
+  public
+
+  def valid?
+    @valid
   end
 
   def parse(*args, **kwargs)
-    @parsed = Options.parse(*args, aliases: aliases, **kwargs)
-    @values = @parsed[:flags]
-    @literals = nil
-    expected_prologue = @pattern[:prologue] || []
-    parsed_prologue = @parsed[:prologue] || []
-    # expected_prologue.group_by { |s| /(?:(?<optional>\?)|(?<required>\!))$/ =~ s ? optional ? :optional : required ? :required : :normal }
-    raise "Missing positional arguments for #{expected_prologue.slice(parsed_prologue.length)}" if expected_prologue.length > parsed_prologue.length
+    raise 'Options are frozen once parsed' if @valid
 
-    @values.reverse_merge(expected_prologue.zip(parsed_prologue).to_h)
-    epilogue_key = @pattern[:epilogue]
-    @values[epilogue_key] = @parsed[:epilogue] if epilogue_key
+    @parsed = Options.parse(*args, aliases: aliases, **kwargs) || {}
+    @values = @parsed[:flags] || {}
+    parsed_prologue = @parsed[:prologue] || []
+    actual_required_prologue = required_prologue - @values.keys
+    if actual_required_prologue.length > parsed_prologue.length
+      raise "Missing positional arguments for #{actual_required_prologue.slice(parsed_prologue.length)}"
+    end
+
+    expected_prologue = (required_prologue + optional_prologue) - @values.keys
+    actual_prologue = expected_prologue.zip(parsed_prologue).reject do |_, v|
+      # Avoid nil values since they're never returned from {@link Options.parse}
+      v.nil?
+    end.to_h
+    @values = actual_prologue.merge(@values)
+    epilogue = Array(parsed_prologue.slice(actual_prologue.length)).concat(Array(@parsed[:epilogue]))
+    puts(required_prologue: required_prologue, optional_prologue: optional_prologue, expected_prologue: expected_prologue, actual_prologue: actual_prologue, epilogue: epilogue)
+    if epilogue_key
+      @values[epilogue_key] = epilogue
+    else
+      raise "Unexpected epilogue: #{epilogue.inspect}" unless epilogue.empty?
+    end
+    @valid = true
   end
 
-  def method_missing(sym)
-    raise 'unparsed' unless @parsed
-    
-    /^(?<key>.*?)(?:(?<boolean>\?)|(?<required>\!))?$/ =~ sym
-    raise KeyError(key) if required && !@values.contains(key)
+  def respond_to_missing?(sym, *_)
+    /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
+
+    return super unless @values.contains?(key) || @flag_configs.contains?(key)
+
+    true
+  end
+
+  def method_missing(sym, *_)
+    return super unless @parsed
+
+    /^(?<key>.*?)(?:(?<boolean>\?))?$/ =~ sym
+    return super unless @values.contains?(key) || @flag_configs.contains?(key)
 
     value = @values[key]
     return !(!value) if boolean
