@@ -5,6 +5,51 @@ require 'options'
 
 RSpec.describe Options do
   let(:aliases) { { f: :flag } }
+
+  context 'utility functions' do
+    it 'generates kebab-case correctly' do
+      expect(described_class.kebab('')).to eq('')
+      expect(described_class.kebab(:'')).to eq('')
+      expect(described_class.kebab('example')).to eq('example')
+      expect(described_class.kebab(:example)).to eq('example')
+      expect(described_class.kebab('something_else_longer')).to eq('something-else-longer')
+      expect(described_class.kebab(:something_else_longer)).to eq('something-else-longer')
+      expect(described_class.kebab(:'something else longer')).to eq('something-else-longer')
+    end
+
+    it 'generates symbols correctly' do
+      expect(described_class.underscore('')).to eq(:'')
+      expect(described_class.underscore('example')).to eq(:example)
+      expect(described_class.underscore('something-else-longer')).to eq(:something_else_longer)
+    end
+
+    shared_examples_for :to_argv do |args, argv|
+      it "handles #{args.inspect}" do
+        expect(described_class.to_argv(*args)).to eq(argv)
+      end
+      it 'produces an ARGV that results in the same parser output' do
+        expected = described_class.parse(*argv)
+        actual = described_class.parse(*argv)
+        expect(actual).to eq(expected)
+      end
+    end
+
+    it_behaves_like(:to_argv, [], [])
+    it_behaves_like(:to_argv, ['value'], ['value'])
+    it_behaves_like(:to_argv, [:flag], ['--flag'])
+    it_behaves_like(:to_argv, [:flag, another: 'value'], ['--flag', '--another=value'])
+    it_behaves_like(
+      :to_argv,
+      [:flag, { another: 'value' }, 'epilogue'],
+      ['--flag', '--another=value', 'epilogue'],
+    )
+    it_behaves_like(
+      :to_argv,
+      ['prologue', 'prologue2', :flag, 'intervalue', { another: %w[value1 value2] }, 'epilogue'],
+      ['prologue', 'prologue2', '--flag', 'intervalue', '--another=value1', '--another=value2', 'epilogue'],
+    )
+  end
+
   context 'parser' do
     it 'empty' do
       expect(described_class.parse).to be_nil
@@ -187,6 +232,12 @@ RSpec.describe Options do
           expect(options.etc).to eq(%w[extra extra])
         end
 
+        it 'considers extra prologue as part of the epilogue' do
+          expect { options.parse('anything', 'extra1', '--read-all-about-it', '--', 'extra2', 'extra3') }.to change(options, :valid?).from(false).to(true)
+          expect(options).to be_read_all_about_it
+          expect(options.etc).to eq(%w[extra1 extra2 extra3])
+        end
+
         it 'flag-hardcore' do
           expect { options.parse('anything', '--read-all-about-it', '--', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
           expect(options).to be_read_all_about_it
@@ -215,11 +266,11 @@ RSpec.describe Options do
             expect(usage_line).to match(/^Usage: #{Pathname(__FILE__).basename}/)
             expect(usage_line).to match(/MODE/)
             expect(usage_line).to match(/\[ETC/)
-            
+
             expect(help.shift).to be_nil.or(match(/^$/))
             help
           end
-          
+
           it :help do
             expect_usage
           end
@@ -247,7 +298,7 @@ RSpec.describe Options do
                   },
                   mode: 'operation mode',
                 }
-              end  
+              end
 
               it 'help' do
                 help = expect_usage

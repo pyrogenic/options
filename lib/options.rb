@@ -4,35 +4,43 @@ require 'pathname'
 
 # Basic options parser
 class Options
-  def self.to_arg(sym)
-    sym.to_s.gsub('_', '-')
+  def self.kebab(sym)
+    sym.to_s.gsub(/[^[:alnum:]]/, '-')
   end
 
-  def self.to_argv(*args, **kwargs)
-    args.map! do |arg|
-      case arg
-      when Symbol
-        "--#{to_arg(arg)}"
-      else
-        arg
-      end
+  def self.underscore(src)
+    src.gsub(/[^[:alnum:]]/, '_').to_sym
+  end
+
+  def self.flagify_arg(arg)
+    case arg
+    when Symbol
+      "--#{kebab(arg)}"
+    when Hash
+      arg.map(&method(:flagify_kwarg)).flatten
+    else
+      arg
     end
-    kwargs.each do |arg, value|
-      converted = case value
-                  when TrueClass
-                    "--#{to_arg(arg)}"
-                  when FalseClass
-                    "--no-#{to_arg(arg)}"
-                  when Array
-                    value.map do |v|
-                      "--#{to_arg(arg)}=#{v}"
-                    end
-                  else
-                    "--#{to_arg(arg)}=#{value}"
-                  end
-      args.concat(Array(converted))
+  end
+
+  def self.flagify_kwarg(arg, value)
+    case value
+    when TrueClass
+      "--#{kebab(arg)}"
+    when FalseClass
+      "--no-#{kebab(arg)}"
+    when Array
+      value.map { |v| "--#{kebab(arg)}=#{v}" }
+    else
+      "--#{kebab(arg)}=#{value}"
     end
-    args
+  end
+
+  # Convert symbolic arguments and keyword-arguments into an equivalent `ARGV`.  Non-symbol argments remain unchanged.
+  # Note that to generate a epilogue portion of an ARGV you need to pass keyword arguments as explicit hashes followed
+  # by non-hash, non-symbol values.
+  def self.to_argv(*args)
+    args.map(&method(:flagify_arg)).flatten
   end
 
   def self.parse(*args_or_argv, aliases: {}, flag_configs: {}, **kwargs)
@@ -48,7 +56,7 @@ class Options
     resolve = lambda do |src|
       raise "Missing value after '#{last_sym_pending}'" if last_sym_pending
 
-      sym = src.gsub('-', '_').to_sym
+      sym = underscore(src)
       aliases[sym] || sym
     end
 
@@ -155,7 +163,7 @@ class Options
   attr_reader :epilogue_key
 
   def initialize(prologue: [], flag_configs: {}, epilogue_key: false, aliases: {}, program: nil)
-    @program = program || begin 
+    @program = program || begin
       %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
       file
     end
@@ -196,13 +204,14 @@ class Options
     when Symbol
       { type: flag_config }
     when nil
+      nil
     when String
       { help: flag_config }
     else
       flag_config
     end
   end
-  
+
   def flag_type(sym)
     flag_config(sym)[:type]
   end
@@ -212,7 +221,7 @@ class Options
   end
 
   def inspect_flag(sym)
-    arg = Options.to_arg(sym)
+    arg = Options.kebab(sym)
     return "#{arg.upcase}" if required_prologue.member?(sym)
     return "[#{arg.upcase}]" if optional_prologue.member?(sym)
     return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if epilogue_key == sym
@@ -228,16 +237,19 @@ class Options
     lines = all_flags.map do |flag|
       config = flag_config(flag)
       next if config.nil?
+
       flag_help = config[:help] || case config[:type]
                                    when :boolean
-                                     'switch'
+                                     '(switch)'
                                    else
+                                     "(#{config[:type]})"
                                    end
       [inspect_flag(flag), flag_help] if flag_help
     end.compact
     return [usage] if lines.empty?
+
     width = lines.map(&:first).map(&:length).max
-    lines.map! { |line| format("  %-#{width}s : %s", *line) }
+    lines.map! { |(flag, help)| format("  %<flag>-#{width}s : %<help>s", flag: flag, help: help) }
     [usage, nil] + lines
   end
 
@@ -251,33 +263,23 @@ class Options
     @parsed = Options.parse(*args, aliases: aliases, flag_configs: flag_configs, **kwargs) || {}
     @values = @parsed[:flags] || {}
     parsed_prologue = @parsed[:prologue] || []
-    actual_required_prologue = required_prologue - @values.keys
-    if actual_required_prologue.length > parsed_prologue.length
-      missing_flags = actual_required_prologue.drop(parsed_prologue.length)
-      raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
-    end
 
-    expected_prologue = (required_prologue + optional_prologue) - @values.keys
-    actual_prologue = expected_prologue.zip(parsed_prologue).reject do |_, v|
-      # Avoid nil values since they're never returned from {@link Options.parse}
-      v.nil?
-    end.to_h
-    #puts(parsed_prologue: parsed_prologue, required_prologue: required_prologue, actual_required_prologue: actual_required_prologue, expected_prologue: expected_prologue, actual_prologue: actual_prologue)
-    @values = actual_prologue.merge(@values)
-    epilogue = parsed_prologue.drop(actual_prologue.length).concat(Array(@parsed[:epilogue]))
-    if epilogue_key
-      @values[epilogue_key] = epilogue
-    else
-      raise "Unexpected epilogue: #{epilogue.inspect}" unless epilogue.empty?
-    end
+    validate_sufficient_prologue(parsed_prologue)
+    actual_prologue = apply_prologue(parsed_prologue)
+    apply_epilogue(parsed_prologue, actual_prologue)
     @valid = true
+  end
+
+  # @return if the given key is a known flag that should appear as part of the object's API
+  def api_key?(key)
+    @values.member?(key) || @optional_prologue.member?(key) || @flag_configs.member?(key)
   end
 
   def respond_to_missing?(sym, *_)
     /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
     key = key.to_sym
-    #puts(sym: sym, key: key, values: @values)
-    return super unless @values.member?(key) || @optional_prologue.member?(key) || @flag_configs.member?(key)
+    # puts(sym: sym, key: key, values: @values)
+    return super unless api_key?(key)
 
     true
   end
@@ -287,11 +289,49 @@ class Options
 
     /^(?<key>.*?)(?:(?<boolean>\?))?$/ =~ sym
     key = key.to_sym
-    return super unless @values.member?(key) || @optional_prologue.member?(key) || @flag_configs.member?(key)
+    return super unless api_key?(key)
 
     value = @values[key]
     return !(!value) if boolean
 
     value
+  end
+
+  private
+
+  # Validate that we have enough arguments given to satisfy our required prologue, taking into account any that were
+  # specified as flags.
+  def validate_sufficient_prologue(parsed_prologue)
+    actual_required_prologue = required_prologue - @values.keys
+    return if actual_required_prologue.length <= parsed_prologue.length
+
+    missing_flags = actual_required_prologue.drop(parsed_prologue.length)
+    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
+  end
+
+  # Reverse-merge prologue values into {@link @values}
+  # @return [Hash] the recognized prologue flags
+  def apply_prologue(parsed_prologue)
+    # Remove any prologue keys whose values appeared as flags:
+    expected_prologue = (required_prologue + optional_prologue) - @values.keys
+    # Convert the prologue into a hash based on the prologue keys we're still waiting for:
+    actual_prologue = expected_prologue.zip(parsed_prologue).reject do |_, v|
+      # Avoid nil values since they're never returned from {@link Options.parse}
+      v.nil?
+    end.to_h
+    @values = actual_prologue.merge(@values)
+    actual_prologue
+  end
+
+  # Any extra prologue values become the beginning of the epilogue.
+  # @raise if there's an epilogue given but we don't expect one
+  # @see epilogue_key
+  def apply_epilogue(parsed_prologue, actual_prologue)
+    epilogue = parsed_prologue.drop(actual_prologue.length).concat(Array(@parsed[:epilogue]))
+    if epilogue_key
+      @values[epilogue_key] = epilogue
+    else
+      raise "Unexpected epilogue: #{epilogue.inspect}" unless epilogue.empty?
+    end
   end
 end
