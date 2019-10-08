@@ -43,8 +43,8 @@ class Options
     args.map(&method(:flagify_arg)).flatten
   end
 
-  def self.parse(*args_or_argv, aliases: {}, flag_configs: {}, **kwargs)
-    argv = to_argv(*args_or_argv, **kwargs)
+  def self.parse(args_or_argv, aliases: {}, flag_configs: {})
+    argv = to_argv(*args_or_argv)
 
     literal_only = false
     prologue = []
@@ -69,7 +69,7 @@ class Options
       when /^--$/
         literal_only = true
         last_sym = nil
-      when /^-([[:alnum:]-])$/
+      when /^-([[:alnum:]])$/
         last_sym = sym = resolve.call(Regexp.last_match(1))
         case flags[sym]
         when true
@@ -257,10 +257,10 @@ class Options
     @valid
   end
 
-  def parse(*args, **kwargs)
+  def parse(*args)
     raise 'Options are frozen once parsed' if @valid
 
-    @parsed = Options.parse(*args, aliases: aliases, flag_configs: flag_configs, **kwargs) || {}
+    @parsed = Options.parse(args, aliases: aliases, flag_configs: flag_configs) || {}
     @values = @parsed[:flags] || {}
     parsed_prologue = @parsed[:prologue] || []
 

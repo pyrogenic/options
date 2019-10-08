@@ -28,8 +28,8 @@ RSpec.describe Options do
         expect(described_class.to_argv(*args)).to eq(argv)
       end
       it 'produces an ARGV that results in the same parser output' do
-        expected = described_class.parse(*argv)
-        actual = described_class.parse(*argv)
+        expected = described_class.parse(argv)
+        actual = described_class.parse(argv)
         expect(actual).to eq(expected)
       end
     end
@@ -52,93 +52,93 @@ RSpec.describe Options do
 
   context 'parser' do
     it 'empty' do
-      expect(described_class.parse).to be_nil
+      expect(described_class.parse([])).to be_nil
     end
     it 'literal' do
-      expect(described_class.parse('f')).to match(prologue: ['f'])
+      expect(described_class.parse(['f'])).to match(prologue: ['f'])
     end
     it 'literals' do
-      expect(described_class.parse('f', '--', '-f')).to match(
+      expect(described_class.parse(['f', '--', '-f'])).to match(
         prologue: ['f'],
         epilogue: ['-f']
       )
     end
     it 'flag' do
-      expect(described_class.parse('-f')).to match(flags: { f: true })
-      expect(described_class.parse('-f', '-f')).to match(flags: { f: 2 })
-      expect(described_class.parse('-f', '-f', '-f')).to match(flags: { f: 3 })
+      expect(described_class.parse(['-f'])).to match(flags: { f: true })
+      expect(described_class.parse(['-f', '-f'])).to match(flags: { f: 2 })
+      expect(described_class.parse(['-f', '-f', '-f'])).to match(flags: { f: 3 })
     end
     it 'long-flag' do
-      expect(described_class.parse('--flag')).to match(flags: { flag: true })
-      expect(described_class.parse('--flag', '--flag')).to match(flags: { flag: 2 })
-      expect(described_class.parse('--flag', '--flag', '--flag')).to match(flags: { flag: 3 })
+      expect(described_class.parse(['--flag'])).to match(flags: { flag: true })
+      expect(described_class.parse(['--flag', '--flag'])).to match(flags: { flag: 2 })
+      expect(described_class.parse(['--flag', '--flag', '--flag'])).to match(flags: { flag: 3 })
     end
     context 'long-flag' do
       it 'alone' do
-        expect(described_class.parse('--flag=example')).to match(flags: { flag: 'example' })
-        expect(described_class.parse('--flag', 'example')).to match(flags: { flag: 'example' })
-        expect(described_class.parse('--flag', 'example', '--flag', 'another')).to match(flags: { flag: %w[example another] })
-        expect(described_class.parse('--flag', 'example', 'another')).to match(flags: { flag: %w[example another] })
-        expect(described_class.parse('--flag', 'example', '--flag', 'another', '--flag', 'example')).to match(flags: { flag: %w[example another example] })
-        expect(described_class.parse('--flag', 'example', 'another', '--flag', 'example')).to match(flags: { flag: %w[example another example] })
-        expect(described_class.parse('--flag', 'example', '--flag', 'another', 'example')).to match(flags: { flag: %w[example another example] })
-        expect(described_class.parse('--flag', 'example', 'another', 'example')).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse(['--flag=example'])).to match(flags: { flag: 'example' })
+        expect(described_class.parse(['--flag', 'example'])).to match(flags: { flag: 'example' })
+        expect(described_class.parse(['--flag', 'example', '--flag', 'another'])).to match(flags: { flag: %w[example another] })
+        expect(described_class.parse(['--flag', 'example', 'another'])).to match(flags: { flag: %w[example another] })
+        expect(described_class.parse(['--flag', 'example', '--flag', 'another', '--flag', 'example'])).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse(['--flag', 'example', 'another', '--flag', 'example'])).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse(['--flag', 'example', '--flag', 'another', 'example'])).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse(['--flag', 'example', 'another', 'example'])).to match(flags: { flag: %w[example another example] })
       end
       it 'with prologue' do
-        expect(described_class.parse('fun', '--flag=example')).to match(prologue: ['fun'], flags: { flag: 'example' })
+        expect(described_class.parse(['fun', '--flag=example'])).to match(prologue: ['fun'], flags: { flag: 'example' })
       end
       it 'with epilog' do
-        expect(described_class.parse('--flag=example', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: %w[another example])
-        expect(described_class.parse('--flag', 'example', '--', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: %w[another example])
+        expect(described_class.parse(['--flag=example', 'another', 'example'])).to match(flags: { flag: 'example' }, epilogue: %w[another example])
+        expect(described_class.parse(['--flag', 'example', '--', 'another', 'example'])).to match(flags: { flag: 'example' }, epilogue: %w[another example])
       end
       it 'with both' do
-        expect(described_class.parse('fun', '--flag=example', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: %w[another example])
-        expect(described_class.parse('fun', '--flag', 'example', '--', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: %w[another example])
+        expect(described_class.parse(['fun', '--flag=example', 'another', 'example'])).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: %w[another example])
+        expect(described_class.parse(['fun', '--flag', 'example', '--', 'another', 'example'])).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: %w[another example])
       end
     end
     it 'inversion' do
-      expect(described_class.parse('--no-flag')).to match(flags: { flag: false })
-      expect(described_class.parse(:no_flag)).to match(flags: { flag: false })
-      expect(described_class.parse('--flag', '--no-flag')).to match(flags: { flag: false })
-      expect(described_class.parse(:flag, :no_flag)).to match(flags: { flag: false })
-      expect(described_class.parse('--flag', '--no-flag', '--no-flag')).to match(flags: { flag: false })
-      expect(described_class.parse(:flag, :no_flag, :no_flag)).to match(flags: { flag: false })
-      expect(described_class.parse('--no-flag', '--flag', '--no-flag')).to match(flags: { flag: false })
-      expect(described_class.parse(:no_flag, :flag, :no_flag)).to match(flags: { flag: false })
+      expect(described_class.parse(['--no-flag'])).to match(flags: { flag: false })
+      expect(described_class.parse([:no_flag])).to match(flags: { flag: false })
+      expect(described_class.parse(['--flag', '--no-flag'])).to match(flags: { flag: false })
+      expect(described_class.parse([:flag, :no_flag])).to match(flags: { flag: false })
+      expect(described_class.parse(['--flag', '--no-flag', '--no-flag'])).to match(flags: { flag: false })
+      expect(described_class.parse([:flag, :no_flag, :no_flag])).to match(flags: { flag: false })
+      expect(described_class.parse(['--no-flag', '--flag', '--no-flag'])).to match(flags: { flag: false })
+      expect(described_class.parse([:no_flag, :flag, :no_flag])).to match(flags: { flag: false })
     end
     it 'alias' do
-      expect(described_class.parse('-f', aliases: aliases)).to match(flags: { flag: true })
-      expect(described_class.parse('-f', '-f', aliases: aliases)).to match(flags: { flag: 2 })
-      expect(described_class.parse('--flag', '-f', aliases: aliases)).to match(flags: { flag: 2 })
+      expect(described_class.parse(['-f'], aliases: aliases)).to match(flags: { flag: true })
+      expect(described_class.parse(['-f', '-f'], aliases: aliases)).to match(flags: { flag: 2 })
+      expect(described_class.parse(['--flag', '-f'], aliases: aliases)).to match(flags: { flag: 2 })
     end
-    shared_examples_for 'IRB' do |args, kwargs, argv, parse_result|
+    shared_examples_for 'IRB' do |args, argv, parse_result|
       it 'to_argv' do
-        expect(described_class.to_argv(*args, **kwargs)).to eq(argv)
+        expect(described_class.to_argv(*args)).to eq(argv)
       end
       it 'parse' do
-        expect(described_class.parse(*args, **kwargs)).to match(parse_result)
+        expect(described_class.parse([*args])).to match(parse_result)
       end
     end
     context 'args' do
-      it_behaves_like('IRB', [:flag], {}, ['--flag'], flags: { flag: true })
-      it_behaves_like('IRB', %i[flag flag], {}, ['--flag', '--flag'], flags: { flag: 2 })
+      it_behaves_like('IRB', [:flag], ['--flag'], flags: { flag: true })
+      it_behaves_like('IRB', %i[flag flag], ['--flag', '--flag'], flags: { flag: 2 })
     end
     context 'kwargs' do
-      it_behaves_like('IRB', [], { flag: true }, ['--flag'], flags: { flag: true })
-      it_behaves_like('IRB', [], { flag: 'example' }, ['--flag=example'], flags: { flag: 'example' })
-      it_behaves_like('IRB', [], { flag: ['example'] }, ['--flag=example'], flags: { flag: 'example' })
-      it_behaves_like('IRB', [], { flag: %w[example another] }, ['--flag=example', '--flag=another'], flags: { flag: %w[example another] })
-      it_behaves_like('IRB', [], { flag: ['example', 'another', 'yet another'] }, ['--flag=example', '--flag=another', '--flag=yet another'], flags: { flag: ['example', 'another', 'yet another'] })
+      it_behaves_like('IRB', [flag: true], ['--flag'], flags: { flag: true })
+      it_behaves_like('IRB', [flag: 'example'], ['--flag=example'], flags: { flag: 'example' })
+      it_behaves_like('IRB', [flag: ['example']], ['--flag=example'], flags: { flag: 'example' })
+      it_behaves_like('IRB', [flag: %w[example another]], ['--flag=example', '--flag=another'], flags: { flag: %w[example another] })
+      it_behaves_like('IRB', [flag: ['example', 'another', 'yet another']], ['--flag=example', '--flag=another', '--flag=yet another'], flags: { flag: ['example', 'another', 'yet another'] })
     end
     context 'both' do
-      it_behaves_like('IRB', [:flag], { flag: true }, ['--flag', '--flag'], flags: { flag: 2 })
-      it_behaves_like('IRB', %i[flag flag], { flag: false }, ['--flag', '--flag', '--no-flag'], flags: { flag: false })
+      it_behaves_like('IRB', [:flag, { flag: true }], ['--flag', '--flag'], flags: { flag: 2 })
+      it_behaves_like('IRB', [:flag, :flag, { flag: false }], ['--flag', '--flag', '--no-flag'], flags: { flag: false })
     end
     context 'error conditions' do
       it 'flag after value' do
-        expect { described_class.parse('--flag=x', '--flag', '--no-flag') }.to raise_error(/missing value.*'--flag'/i)
-        expect { described_class.parse('--flag=example-value', '-f', aliases: aliases) }.to raise_error(/boolean.*'-f'.*"example-value"/i)
-        expect { described_class.parse('--flag=example-value', '--flag') }.to raise_error(/missing value.*'--flag'/i)
+        expect { described_class.parse(['--flag=x', '--flag', '--no-flag']) }.to raise_error(/missing value.*'--flag'/i)
+        expect { described_class.parse(['--flag=example-value', '-f'], aliases: aliases) }.to raise_error(/boolean.*'-f'.*"example-value"/i)
+        expect { described_class.parse(['--flag=example-value', '--flag']) }.to raise_error(/missing value.*'--flag'/i)
       end
     end
   end
