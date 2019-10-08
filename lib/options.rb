@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'pathname'
+
 # Basic options parser
 class Options
   def self.to_arg(sym)
@@ -152,7 +154,11 @@ class Options
   attr_reader :flag_configs
   attr_reader :epilogue_key
 
-  def initialize(prologue: [], flag_configs: {}, epilogue_key: false, aliases: {})
+  def initialize(prologue: [], flag_configs: {}, epilogue_key: false, aliases: {}, program: nil)
+    @program = program || begin 
+      %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
+      file
+    end
     @aliases = aliases.freeze
     initialize_prologue(prologue)
     @flag_configs = flag_configs.freeze
@@ -183,10 +189,17 @@ class Options
   public
 
   def inspect_flag(sym)
-    return "<#{sym}>" if required_prologue.member?(sym)
-    return "[#{sym}]" if optional_prologue.member?(sym)
+    return "#{sym.upcase}" if required_prologue.member?(sym)
+    return "[#{sym.upcase}]" if optional_prologue.member?(sym)
+    return "[#{sym.to_s.upcase} ... [#{sym.to_s.upcase}]]" if epilogue_key == sym
 
     "--#{sym}"
+  end
+
+  def help
+    all_flags = required_prologue + optional_prologue + flag_configs.keys + Array(epilogue_key)
+    lines = []
+    lines << "Usage: #{@program} #{all_flags.map(&method(:inspect_flag))}"
   end
 
   def valid?
@@ -210,7 +223,7 @@ class Options
       # Avoid nil values since they're never returned from {@link Options.parse}
       v.nil?
     end.to_h
-    puts(parsed_prologue: parsed_prologue, required_prologue: required_prologue, actual_required_prologue: actual_required_prologue, expected_prologue: expected_prologue, actual_prologue: actual_prologue)
+    #puts(parsed_prologue: parsed_prologue, required_prologue: required_prologue, actual_required_prologue: actual_required_prologue, expected_prologue: expected_prologue, actual_prologue: actual_prologue)
     @values = actual_prologue.merge(@values)
     epilogue = parsed_prologue.drop(actual_prologue.length).concat(Array(@parsed[:epilogue]))
     if epilogue_key
@@ -224,7 +237,7 @@ class Options
   def respond_to_missing?(sym, *_)
     /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
     key = key.to_sym
-    puts(sym: sym, key: key, values: @values)
+    #puts(sym: sym, key: key, values: @values)
     return super unless @values.member?(key) || @optional_prologue.member?(key) || @flag_configs.member?(key)
 
     true

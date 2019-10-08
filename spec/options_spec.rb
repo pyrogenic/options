@@ -32,23 +32,23 @@ RSpec.describe Options do
       it 'alone' do
         expect(described_class.parse('--flag=example')).to match(flags: { flag: 'example' })
         expect(described_class.parse('--flag', 'example')).to match(flags: { flag: 'example' })
-        expect(described_class.parse('--flag', 'example', '--flag', 'another')).to match(flags: { flag: ['example', 'another'] })
-        expect(described_class.parse('--flag', 'example', 'another')).to match(flags: { flag: ['example', 'another'] })
-        expect(described_class.parse('--flag', 'example', '--flag', 'another', '--flag', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
-        expect(described_class.parse('--flag', 'example', 'another', '--flag', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
-        expect(described_class.parse('--flag', 'example', '--flag', 'another', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
-        expect(described_class.parse('--flag', 'example', 'another', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
+        expect(described_class.parse('--flag', 'example', '--flag', 'another')).to match(flags: { flag: %w[example another] })
+        expect(described_class.parse('--flag', 'example', 'another')).to match(flags: { flag: %w[example another] })
+        expect(described_class.parse('--flag', 'example', '--flag', 'another', '--flag', 'example')).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse('--flag', 'example', 'another', '--flag', 'example')).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse('--flag', 'example', '--flag', 'another', 'example')).to match(flags: { flag: %w[example another example] })
+        expect(described_class.parse('--flag', 'example', 'another', 'example')).to match(flags: { flag: %w[example another example] })
       end
       it 'with prologue' do
         expect(described_class.parse('fun', '--flag=example')).to match(prologue: ['fun'], flags: { flag: 'example' })
       end
       it 'with epilog' do
-        expect(described_class.parse('--flag=example', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: ['another', 'example'])
-        expect(described_class.parse('--flag', 'example', '--', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: ['another', 'example'])
+        expect(described_class.parse('--flag=example', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: %w[another example])
+        expect(described_class.parse('--flag', 'example', '--', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: %w[another example])
       end
       it 'with both' do
-        expect(described_class.parse('fun', '--flag=example', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: ['another', 'example'])
-        expect(described_class.parse('fun', '--flag', 'example', '--', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: ['another', 'example'])
+        expect(described_class.parse('fun', '--flag=example', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: %w[another example])
+        expect(described_class.parse('fun', '--flag', 'example', '--', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: %w[another example])
       end
     end
     it 'inversion' do
@@ -76,18 +76,18 @@ RSpec.describe Options do
     end
     context 'args' do
       it_behaves_like('IRB', [:flag], {}, ['--flag'], flags: { flag: true })
-      it_behaves_like('IRB', [:flag, :flag], {}, ['--flag', '--flag'], flags: { flag: 2 })
+      it_behaves_like('IRB', %i[flag flag], {}, ['--flag', '--flag'], flags: { flag: 2 })
     end
     context 'kwargs' do
-      it_behaves_like('IRB', [], { flag: true }, ['--flag'], { flags: { flag: true } })
-      it_behaves_like('IRB', [], { flag: 'example' }, ['--flag=example'], { flags: { flag: 'example' } })
-      it_behaves_like('IRB', [], { flag: ['example'] }, ['--flag=example'], { flags: { flag: 'example' } })
-      it_behaves_like('IRB', [], { flag: ['example', 'another'] }, ['--flag=example', '--flag=another'], { flags: { flag: ['example', 'another'] } })
-      it_behaves_like('IRB', [], { flag: ['example', 'another', 'yet another'] }, ['--flag=example', '--flag=another', '--flag=yet another'], { flags: { flag: ['example', 'another', 'yet another'] } })
+      it_behaves_like('IRB', [], { flag: true }, ['--flag'], flags: { flag: true })
+      it_behaves_like('IRB', [], { flag: 'example' }, ['--flag=example'], flags: { flag: 'example' })
+      it_behaves_like('IRB', [], { flag: ['example'] }, ['--flag=example'], flags: { flag: 'example' })
+      it_behaves_like('IRB', [], { flag: %w[example another] }, ['--flag=example', '--flag=another'], flags: { flag: %w[example another] })
+      it_behaves_like('IRB', [], { flag: ['example', 'another', 'yet another'] }, ['--flag=example', '--flag=another', '--flag=yet another'], flags: { flag: ['example', 'another', 'yet another'] })
     end
     context 'both' do
       it_behaves_like('IRB', [:flag], { flag: true }, ['--flag', '--flag'], flags: { flag: 2 })
-      it_behaves_like('IRB', [:flag, :flag], { flag: false }, ['--flag', '--flag', '--no-flag'], flags: { flag: false })
+      it_behaves_like('IRB', %i[flag flag], { flag: false }, ['--flag', '--flag', '--no-flag'], flags: { flag: false })
     end
     context 'error conditions' do
       it 'flag after value' do
@@ -124,7 +124,7 @@ RSpec.describe Options do
         expect { options.parse('anything') }.to raise_error(/unexpected/i)
       end
     end
-  
+
     context 'optional prologue' do
       let(:prologue) { [:mode?] }
 
@@ -154,6 +154,20 @@ RSpec.describe Options do
         expect(options.mode).to eq('anything')
       end
 
+      it 'as flag =' do
+        expect { options.parse('--mode=anything') }.to change(options, :valid?).from(false).to(true)
+        expect { options.parse }.to raise_error(/frozen/i)
+
+        expect(options.mode).to eq('anything')
+      end
+
+      it 'as flag value' do
+        expect { options.parse('--mode', 'anything') }.to change(options, :valid?).from(false).to(true)
+        expect { options.parse }.to raise_error(/frozen/i)
+
+        expect(options.mode).to eq('anything')
+      end
+
       context 'without epilogue' do
         it 'unexpected epilogue' do
           expect { options.parse('anything', 'extra') }.to raise_error(/unexpected/i)
@@ -162,30 +176,44 @@ RSpec.describe Options do
 
       context 'with epilogue' do
         let(:epilogue_key) { :etc }
+
         it 'simple' do
           expect { options.parse('anything', 'extra') }.to change(options, :valid?).from(false).to(true)
           expect(options.etc).to eq(['extra'])
         end
+
         it 'double' do
           expect { options.parse('anything', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
-          expect(options.etc).to eq(['extra', 'extra'])
+          expect(options.etc).to eq(%w[extra extra])
         end
+
         it 'flag-hardcore' do
           expect { options.parse('anything', '--read-all-about-it', '--', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
           expect(options).to be_read_all_about_it
-          expect(options.etc).to eq(['extra', 'extra'])
+          expect(options.etc).to eq(%w[extra extra])
         end
+
         it 'flag-value' do
           expect { options.parse('anything', '--read-all-about-it=something', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
           expect(options).to be_read_all_about_it
-          expect(options.etc).to eq(['extra', 'extra'])
+          expect(options.etc).to eq(%w[extra extra])
         end
+
         context 'with configured flags' do
           let(:flag_configs) { { read_all_about_it: true } }
+
           it 'flag-config' do
             expect { options.parse('anything', '--read-all-about-it', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
             expect(options).to be_read_all_about_it
-            expect(options.etc).to eq(['extra', 'extra'])
+            expect(options.etc).to eq(%w[extra extra])
+          end
+
+          it :help do
+            help = options.help
+            puts help
+            expect(help).to include(/options_spec/)
+            expect(help).to include(/MODE/)
+            expect(help).to include(/\[ETC/)
           end
         end
       end
