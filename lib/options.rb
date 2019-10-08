@@ -33,7 +33,7 @@ class Options
     args
   end
 
-  def self.parse(*args_or_argv, aliases: {}, **kwargs)
+  def self.parse(*args_or_argv, aliases: {}, flag_configs: {}, **kwargs)
     argv = to_argv(*args_or_argv, **kwargs)
 
     literal_only = false
@@ -46,7 +46,7 @@ class Options
     resolve = lambda do |src|
       raise "Missing value after '#{last_sym_pending}'" if last_sym_pending
 
-      sym = src.to_sym
+      sym = src.gsub('-', '_').to_sym
       aliases[sym] || sym
     end
 
@@ -59,7 +59,7 @@ class Options
       when /^--$/
         literal_only = true
         last_sym = nil
-      when /^-([[:alnum:]])$/
+      when /^-([[:alnum:]-])$/
         last_sym = sym = resolve.call(Regexp.last_match(1))
         case flags[sym]
         when true
@@ -72,18 +72,24 @@ class Options
           raise "Unexpected boolean '#{arg}' after set to value #{flags[sym].inspect}"
         end
 
-      when /^--(?<no>no-)?(?<flag>[[:alnum:]]+)(?:=(?<value>.*))?$/
+      when /^--(?<no>no-)?(?<flag>[[:alnum:]-]+)(?:=(?<value>.*))?$/
         flag = Regexp.last_match[:flag]
         value = Regexp.last_match[:value]
         no = Regexp.last_match[:no]
         sym = resolve.call(flag)
+        flag_config = case flag_configs[sym]
+                      when true
+                        :boolean
+                      else
+                        flag_configs[sym]
+                      end
         if no
           raise "Unexpected value specified with no- prefix: #{arg}" unless value.nil?
 
           flags[sym] = false
           last_sym = nil
         elsif value.nil?
-          last_sym = sym
+          last_sym = flag_config == :boolean ? nil : sym
           case flags[sym]
           when true
             flags[sym] = 2
@@ -95,6 +101,8 @@ class Options
             last_sym_pending = arg
           end
         else
+          raise "Unexpected value for #{inspect_flag(arg)}: #{value.inspect}" if flag_config == :boolean
+
           last_sym = nil
           case flags[sym]
           when nil
@@ -158,7 +166,7 @@ class Options
     required_prologue = []
     optional_prologue = []
     prologue.each do |key|
-      /^(?<key>[[:alnum:]]*)(?<optional>\?)?$/ =~ key
+      /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
       key = key.to_sym
       if optional
         optional_prologue << key if optional
@@ -188,7 +196,7 @@ class Options
   def parse(*args, **kwargs)
     raise 'Options are frozen once parsed' if @valid
 
-    @parsed = Options.parse(*args, aliases: aliases, **kwargs) || {}
+    @parsed = Options.parse(*args, aliases: aliases, flag_configs: flag_configs, **kwargs) || {}
     @values = @parsed[:flags] || {}
     parsed_prologue = @parsed[:prologue] || []
     actual_required_prologue = required_prologue - @values.keys
@@ -216,6 +224,7 @@ class Options
   def respond_to_missing?(sym, *_)
     /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
     key = key.to_sym
+    puts(sym: sym, key: key, values: @values)
     return super unless @values.member?(key) || @flag_configs.member?(key)
 
     true

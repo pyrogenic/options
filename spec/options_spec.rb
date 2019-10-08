@@ -39,9 +39,16 @@ RSpec.describe Options do
         expect(described_class.parse('--flag', 'example', '--flag', 'another', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
         expect(described_class.parse('--flag', 'example', 'another', 'example')).to match(flags: { flag: ['example', 'another', 'example'] })
       end
+      it 'with prologue' do
+        expect(described_class.parse('fun', '--flag=example')).to match(prologue: ['fun'], flags: { flag: 'example' })
+      end
       it 'with epilog' do
         expect(described_class.parse('--flag=example', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: ['another', 'example'])
         expect(described_class.parse('--flag', 'example', '--', 'another', 'example')).to match(flags: { flag: 'example' }, epilogue: ['another', 'example'])
+      end
+      it 'with both' do
+        expect(described_class.parse('fun', '--flag=example', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: ['another', 'example'])
+        expect(described_class.parse('fun', '--flag', 'example', '--', 'another', 'example')).to match(prologue: ['fun'], flags: { flag: 'example' }, epilogue: ['another', 'example'])
       end
     end
     it 'inversion' do
@@ -139,9 +146,31 @@ RSpec.describe Options do
 
       context 'with epilogue' do
         let(:epilogue_key) { :etc }
-        it 'epilogue' do
+        it 'simple' do
           expect { options.parse('anything', 'extra') }.to change(options, :valid?).from(false).to(true)
           expect(options.etc).to eq(['extra'])
+        end
+        it 'double' do
+          expect { options.parse('anything', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
+          expect(options.etc).to eq(['extra', 'extra'])
+        end
+        it 'flag-hardcore' do
+          expect { options.parse('anything', '--read-all-about-it', '--', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
+          expect(options).to be_read_all_about_it
+          expect(options.etc).to eq(['extra', 'extra'])
+        end
+        it 'flag-value' do
+          expect { options.parse('anything', '--read-all-about-it=something', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
+          expect(options).to be_read_all_about_it
+          expect(options.etc).to eq(['extra', 'extra'])
+        end
+        context 'with configured flags' do
+          let(:flag_configs) { { read_all_about_it: true } }
+          it 'flag-config' do
+            expect { options.parse('anything', '--read-all-about-it', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
+            expect(options).to be_read_all_about_it
+            expect(options.etc).to eq(['extra', 'extra'])
+          end
         end
       end
     end
