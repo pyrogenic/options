@@ -83,6 +83,7 @@ RSpec.describe Options do
       it_behaves_like('IRB', [], { flag: 'example' }, ['--flag=example'], { flags: { flag: 'example' } })
       it_behaves_like('IRB', [], { flag: ['example'] }, ['--flag=example'], { flags: { flag: 'example' } })
       it_behaves_like('IRB', [], { flag: ['example', 'another'] }, ['--flag=example', '--flag=another'], { flags: { flag: ['example', 'another'] } })
+      it_behaves_like('IRB', [], { flag: ['example', 'another', 'yet another'] }, ['--flag=example', '--flag=another', '--flag=yet another'], { flags: { flag: ['example', 'another', 'yet another'] } })
     end
     context 'both' do
       it_behaves_like('IRB', [:flag], { flag: true }, ['--flag', '--flag'], flags: { flag: 2 })
@@ -123,8 +124,23 @@ RSpec.describe Options do
         expect { options.parse('anything') }.to raise_error(/unexpected/i)
       end
     end
+  
+    context 'optional prologue' do
+      let(:prologue) { [:mode?] }
 
-    context 'prologue' do
+      it 'empty' do
+        expect { options.parse }.to change(options, :valid?).from(false).to(true)
+        expect(options.mode).to be_nil
+        expect { options.parse }.to raise_error(/frozen/i)
+      end
+
+      it 'valid' do
+        expect { options.parse('anything') }.to change(options, :valid?).from(false).to(true)
+        expect(options.mode).to eq('anything')
+      end
+    end
+
+    context 'required prologue' do
       let(:prologue) { [:mode] }
 
       it 'empty' do

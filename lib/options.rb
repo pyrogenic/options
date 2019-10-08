@@ -225,7 +225,7 @@ class Options
     /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
     key = key.to_sym
     puts(sym: sym, key: key, values: @values)
-    return super unless @values.member?(key) || @flag_configs.member?(key)
+    return super unless @values.member?(key) || @optional_prologue.member?(key) || @flag_configs.member?(key)
 
     true
   end
@@ -235,7 +235,7 @@ class Options
 
     /^(?<key>.*?)(?:(?<boolean>\?))?$/ =~ sym
     key = key.to_sym
-    return super unless @values.member?(key) || @flag_configs.member?(key)
+    return super unless @values.member?(key) || @optional_prologue.member?(key) || @flag_configs.member?(key)
 
     value = @values[key]
     return !(!value) if boolean
