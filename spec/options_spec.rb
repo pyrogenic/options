@@ -211,9 +211,9 @@ RSpec.describe Options do
           it :help do
             help = options.help
             puts help
-            expect(help).to include(/options_spec/)
-            expect(help).to include(/MODE/)
-            expect(help).to include(/\[ETC/)
+            expect(help.first).to match(/^Usage: #{Pathname(__FILE__).basename}/)
+            expect(help.first).to match(/MODE/)
+            expect(help.first).to match(/\[ETC/)
           end
         end
       end
