@@ -212,12 +212,13 @@ class Options
   end
 
   def inspect_flag(sym)
-    return "#{sym.upcase}" if required_prologue.member?(sym)
-    return "[#{sym.upcase}]" if optional_prologue.member?(sym)
-    return "[#{sym.to_s.upcase} ... [#{sym.to_s.upcase}]]" if epilogue_key == sym
-    return "--[no-]#{sym}" if boolean?(sym)
+    arg = Options.to_arg(sym)
+    return "#{arg.upcase}" if required_prologue.member?(sym)
+    return "[#{arg.upcase}]" if optional_prologue.member?(sym)
+    return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if epilogue_key == sym
+    return "--[no-]#{arg}" if boolean?(sym)
 
-    "--#{sym}"
+    "--#{arg}"
   end
 
   def help

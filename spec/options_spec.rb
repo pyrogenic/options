@@ -233,7 +233,8 @@ RSpec.describe Options do
             end
             it 'help' do
               help = expect_usage
-              expect(help).to include(/MODE.*/)
+              expect(help).to include(/MODE/)
+              expect(help).to include(/--\[no-\]read-all-about-it/)
             end
           end
         end
