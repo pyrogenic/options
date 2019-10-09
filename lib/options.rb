@@ -283,7 +283,7 @@ class Options
   def splat?(sym)
     [prologue_key, epilogue_key].member?(sym)
   end
-  
+
   def inspect_flag(sym)
     arg = Options.kebab(sym)
     return "#{arg.upcase}" if required?(sym)
@@ -292,14 +292,14 @@ class Options
     return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if splat?(sym)
     return "--[no-]#{arg}" if boolean?(sym)
 
-    "--#{arg}"
+    "--#{arg}=VALUE"
   end
 
   def help
-    prologue_keys = [required_prologue, optional_prologue, prologue_key].map(&method(:Array)).flatten
-    epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key].map(&method(:Array)).flatten
+    prologue_keys = [required_prologue, optional_prologue, prologue_key ? prologue_key : nil].map(&method(:Array)).flatten
+    epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key ? epilogue_key : nil].map(&method(:Array)).flatten
     flag_keys = flag_configs.keys
-    flag_keys << :any_key
+    flag_keys << :any_key if flag_configs[:any_key]
     all_flags = prologue_keys + (flag_keys - prologue_keys) + epilogue_keys
     usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
     any_real_help = false
