@@ -171,6 +171,7 @@ RSpec.describe Options do
       end
 
       it 'prologue' do
+        pp options
         expect { options.parse(['anything']) }.to change(options, :valid?).from(false).to(true)
         expect(options.prologue).to eq(['anything'])
       end

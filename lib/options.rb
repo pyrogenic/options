@@ -160,11 +160,13 @@ class Options
   attr_reader :optional_epilogue
   attr_reader :epilogue_key
 
+  DEFAULT = Object.new
+
   def initialize(
-    prologue: true,
-    flag_config: true,
+    prologue: DEFAULT,
+    flag_config: DEFAULT,
     flag_configs: nil,
-    epilogue: true,
+    epilogue: DEFAULT,
     aliases: {},
     program: nil)
     @program = program || begin
@@ -172,8 +174,14 @@ class Options
       file
     end
     @aliases = aliases.freeze
+    prologue_set = prologue && prologue != DEFAULT
+    flag_configs_set = flag_configs && flag_configs != DEFAULT
+    epilogue_set = epilogue && epilogue != DEFAULT
+    prologue = epilogue_set || flag_configs_set ? false : true if prologue == DEFAULT
     initialize_prologue(prologue)
+    flag_config = flag_configs_set ? false : true if flag_config == DEFAULT
     @flag_configs = Hash.new(flag_config).merge(flag_configs || {}).freeze
+    epilogue = prologue_set || flag_configs_set ? false : true if epilogue == DEFAULT
     initialize_epilogue(epilogue)
     @valid = false
   end
@@ -181,48 +189,48 @@ class Options
   private
 
   def initialize_prologue(prologue)
+    @required_prologue = []
+    @optional_prologue = []
     @prologue_key = :prologue if prologue == true
     @prologue_key = false if prologue == false
     return unless @prologue_key.nil?
 
-    required_prologue = []
-    optional_prologue = []
     Array(prologue).each do |key|
       /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
       key = key.to_sym
       if optional
-        optional_prologue << key if optional
+        @optional_prologue << key if optional
       else
-        raise 'required prologue cannot follow optional prologue' unless optional_prologue.empty?
+        raise 'required prologue cannot follow optional prologue' unless @optional_prologue.empty?
 
-        required_prologue << key
+        @required_prologue << key
       end
     end
-    @required_prologue = required_prologue.freeze
-    @optional_prologue = optional_prologue.freeze
+    @required_prologue.freeze
+    @optional_prologue.freeze
   end
 
   def initialize_epilogue(epilogue)
+    @required_epilogue = []
+    @optional_epilogue = []
     @epilogue_key = :epilogue if epilogue == true
     @epilogue_key = false if epilogue == false
     @epilogue_key = epilogue if epilogue.is_a?(Symbol)
     return unless @epilogue_key.nil?
 
-    required_epilogue = []
-    optional_epilogue = []
     Array(epilogue).each do |key|
       /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
       key = key.to_sym
       if optional
-        optional_epilogue << key if optional
+        @optional_epilogue << key if optional
       else
-        raise 'required epilogue cannot follow optional epilogue' unless optional_epilogue.empty?
+        raise 'required epilogue cannot follow optional epilogue' unless @optional_epilogue.empty?
 
-        required_epilogue << key
+        @required_epilogue << key
       end
     end
-    @required_epilogue = required_epilogue.freeze
-    @optional_epilogue = optional_epilogue.freeze
+    @required_epilogue = @required_epilogue.freeze
+    @optional_epilogue = @optional_epilogue.freeze
   end
 
   public
@@ -280,6 +288,7 @@ class Options
     arg = Options.kebab(sym)
     return "#{arg.upcase}" if required?(sym)
     return "[#{arg.upcase}]" if optional?(sym)
+    return "[options]" if sym == :any_key
     return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if splat?(sym)
     return "--[no-]#{arg}" if boolean?(sym)
 
@@ -289,21 +298,26 @@ class Options
   def help
     prologue_keys = [required_prologue, optional_prologue, prologue_key].map(&method(:Array)).flatten
     epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key].map(&method(:Array)).flatten
-    all_flags = prologue_keys + (flag_configs.keys - prologue_keys) + epilogue_keys
+    flag_keys = flag_configs.keys
+    flag_keys << :any_key
+    all_flags = prologue_keys + (flag_keys - prologue_keys) + epilogue_keys
     usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
+    any_real_help = false
     lines = all_flags.map do |flag|
       config = flag_config(flag)
-      next if config.nil?
+      next unless config
 
-      flag_help = config[:help] || case config[:type]
-                                   when :boolean
-                                     '(switch)'
-                                   else
-                                     "(#{config[:type]})"
-                                   end
+      real_help = config[:help]
+      any_real_help ||= real_help
+      flag_help = real_help || case config[:type]
+                               when :boolean
+                                 '(switch)'
+                               else
+                                 "(#{config[:type]})"
+                               end
       [inspect_flag(flag), flag_help] if flag_help
     end.compact
-    return [usage] if lines.empty?
+    return [usage] if lines.empty? || !any_real_help
 
     width = lines.map(&:first).map(&:length).max
     lines.map! { |(flag, help)| format("  %<flag>-#{width}s : %<help>s", flag: flag, help: help) }
@@ -362,6 +376,7 @@ class Options
   def validate_sufficient_prologue(parsed_prologue)
     return if prologue_key
 
+    pp(required_prologue: required_prologue, values: @values)
     actual_required_prologue = required_prologue - @values.keys
     return if actual_required_prologue.length <= parsed_prologue.length
 
