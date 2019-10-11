@@ -2,8 +2,8 @@
 
 require 'pathname'
 
-# Basic options parser
-class Options
+# Basic aargs parser
+class Aargs
   def self.kebab(sym)
     sym.to_s.gsub(/[^[:alnum:]]/, '-')
   end
@@ -261,15 +261,15 @@ class Options
   end
 
   def flag_config(sym)
-    Options.flag_config(sym, flag_configs: flag_configs)
+    Aargs.flag_config(sym, flag_configs: flag_configs)
   end
 
   def flag_type(sym)
-    Options.flag_type(sym, flag_configs: flag_configs)
+    Aargs.flag_type(sym, flag_configs: flag_configs)
   end
 
   def boolean?(sym)
-    Options.boolean?(sym, flag_configs: flag_configs)
+    Aargs.boolean?(sym, flag_configs: flag_configs)
   end
 
   def required?(sym)
@@ -285,10 +285,10 @@ class Options
   end
 
   def inspect_flag(sym)
-    arg = Options.kebab(sym)
+    arg = Aargs.kebab(sym)
     return "#{arg.upcase}" if required?(sym)
     return "[#{arg.upcase}]" if optional?(sym)
-    return "[options]" if sym == :any_key
+    return "[aargs]" if sym == :any_key
     return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if splat?(sym)
     return "--[no-]#{arg}" if boolean?(sym)
 
@@ -329,9 +329,9 @@ class Options
   end
 
   def parse(*args)
-    raise 'Options are frozen once parsed' if @valid
+    raise 'Aargs are frozen once parsed' if @valid
 
-    @parsed = Options.parse(args, aliases: aliases, flag_configs: flag_configs) || {}
+    @parsed = Aargs.parse(args, aliases: aliases, flag_configs: flag_configs) || {}
     @values = @parsed[:flags] || {}
     parsed_prologue = @parsed[:prologue] || []
 
@@ -405,7 +405,7 @@ class Options
     expected_prologue = (required_prologue + optional_prologue) - @values.keys
     # Convert the prologue into a hash based on the prologue keys we're still waiting for:
     consumed_prologue = expected_prologue.zip(parsed_prologue).reject do |_, v|
-      # Avoid nil values since they're never returned from {@link Options.parse}
+      # Avoid nil values since they're never returned from {@link Aargs.parse}
       v.nil?
     end.to_h
     @values = consumed_prologue.merge(@values)
@@ -426,7 +426,7 @@ class Options
     expected_epilogue = epilogue_keys - @values.keys
     # Convert the epilogue into a hash based on the epilogue keys we're still waiting for:
     consumed_epilogue = expected_epilogue.zip(parsed_epilogue).reject do |_, v|
-      # Avoid nil values since they're never returned from {@link Options.parse}
+      # Avoid nil values since they're never returned from {@link Aargs.parse}
       v.nil?
     end.to_h
     @values = consumed_epilogue.merge(@values)

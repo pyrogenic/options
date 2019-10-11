@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'options'
+require 'aargs'
 require 'pp'
 
-RSpec.describe Options do
+RSpec.describe Aargs do
   let(:aliases) { { f: :flag } }
 
   context 'utility functions' do
@@ -148,7 +148,7 @@ RSpec.describe Options do
     let(:prologue) { nil }
     let(:flag_configs) { nil }
     let(:epilogue) { nil }
-    let(:options) do
+    let(:aargs) do
       args = {}
       args[:prologue] = prologue unless prologue.nil?
       args[:flag_configs] = flag_configs unless flag_configs.nil?
@@ -157,23 +157,23 @@ RSpec.describe Options do
     end
 
     it 'constructs' do
-      expect(options).not_to be_valid
+      expect(aargs).not_to be_valid
     end
 
     context 'no configuration' do
       it 'empty' do
-        expect { options.parse }.to change(options, :valid?).from(false).to(true)
-        expect { options.parse }.to raise_error(/frozen/i)
+        expect { aargs.parse }.to change(aargs, :valid?).from(false).to(true)
+        expect { aargs.parse }.to raise_error(/frozen/i)
       end
 
       it '#parse returns self' do
-        expect(options.parse).to be(options)
+        expect(aargs.parse).to be(aargs)
       end
 
       it 'prologue' do
-        pp options
-        expect { options.parse(['anything']) }.to change(options, :valid?).from(false).to(true)
-        expect(options.prologue).to eq(['anything'])
+        pp aargs
+        expect { aargs.parse(['anything']) }.to change(aargs, :valid?).from(false).to(true)
+        expect(aargs.prologue).to eq(['anything'])
       end
     end
 
@@ -181,14 +181,14 @@ RSpec.describe Options do
       let(:prologue) { [:mode?] }
 
       it 'empty' do
-        expect { options.parse }.to change(options, :valid?).from(false).to(true)
-        expect(options.mode).to be_nil
-        expect { options.parse }.to raise_error(/frozen/i)
+        expect { aargs.parse }.to change(aargs, :valid?).from(false).to(true)
+        expect(aargs.mode).to be_nil
+        expect { aargs.parse }.to raise_error(/frozen/i)
       end
 
       it 'valid' do
-        expect { options.parse('anything') }.to change(options, :valid?).from(false).to(true)
-        expect(options.mode).to eq('anything')
+        expect { aargs.parse('anything') }.to change(aargs, :valid?).from(false).to(true)
+        expect(aargs.mode).to eq('anything')
       end
     end
 
@@ -196,35 +196,35 @@ RSpec.describe Options do
       let(:prologue) { [:mode] }
 
       it 'empty' do
-        expect { options.parse }.to raise_error(/positional.*mode/i)
+        expect { aargs.parse }.to raise_error(/positional.*mode/i)
       end
 
       it 'valid' do
-        expect { options.parse('anything') }.to change(options, :valid?).from(false).to(true)
-        expect { options.parse }.to raise_error(/frozen/i)
+        expect { aargs.parse('anything') }.to change(aargs, :valid?).from(false).to(true)
+        expect { aargs.parse }.to raise_error(/frozen/i)
 
-        expect(options.mode).to eq('anything')
+        expect(aargs.mode).to eq('anything')
       end
 
       it 'as flag =' do
-        expect { options.parse('--mode=anything') }.to change(options, :valid?).from(false).to(true)
-        expect { options.parse }.to raise_error(/frozen/i)
+        expect { aargs.parse('--mode=anything') }.to change(aargs, :valid?).from(false).to(true)
+        expect { aargs.parse }.to raise_error(/frozen/i)
 
-        expect(options.mode).to eq('anything')
+        expect(aargs.mode).to eq('anything')
       end
 
       it 'as flag value' do
-        expect { options.parse('--mode', 'anything') }.to change(options, :valid?).from(false).to(true)
-        expect { options.parse }.to raise_error(/frozen/i)
+        expect { aargs.parse('--mode', 'anything') }.to change(aargs, :valid?).from(false).to(true)
+        expect { aargs.parse }.to raise_error(/frozen/i)
 
-        expect(options.mode).to eq('anything')
+        expect(aargs.mode).to eq('anything')
       end
 
       context 'without epilogue' do
         let(:epilogue) { false }
 
         it 'unexpected epilogue' do
-          expect { options.parse('anything', '--', 'extra').tap { |v| pp v } }.to raise_error(/unexpected/i)
+          expect { aargs.parse('anything', '--', 'extra').tap { |v| pp v } }.to raise_error(/unexpected/i)
         end
       end
 
@@ -232,44 +232,44 @@ RSpec.describe Options do
         let(:epilogue) { :etc }
 
         it 'simple' do
-          expect { options.parse('anything', 'extra') }.to change(options, :valid?).from(false).to(true)
-          expect(options.etc).to eq(['extra'])
+          expect { aargs.parse('anything', 'extra') }.to change(aargs, :valid?).from(false).to(true)
+          expect(aargs.etc).to eq(['extra'])
         end
 
         it 'double' do
-          expect { options.parse('anything', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
-          expect(options.etc).to eq(%w[extra extra])
+          expect { aargs.parse('anything', 'extra', 'extra') }.to change(aargs, :valid?).from(false).to(true)
+          expect(aargs.etc).to eq(%w[extra extra])
         end
 
         it 'considers extra prologue as part of the epilogue' do
-          expect { options.parse('anything', 'extra1', '--read-all-about-it', '--', 'extra2', 'extra3') }.to change(options, :valid?).from(false).to(true)
-          expect(options).to be_read_all_about_it
-          expect(options.etc).to eq(%w[extra1 extra2 extra3])
+          expect { aargs.parse('anything', 'extra1', '--read-all-about-it', '--', 'extra2', 'extra3') }.to change(aargs, :valid?).from(false).to(true)
+          expect(aargs).to be_read_all_about_it
+          expect(aargs.etc).to eq(%w[extra1 extra2 extra3])
         end
 
         it 'flag-hardcore' do
-          expect { options.parse('anything', '--read-all-about-it', '--', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
-          expect(options).to be_read_all_about_it
-          expect(options.etc).to eq(%w[extra extra])
+          expect { aargs.parse('anything', '--read-all-about-it', '--', 'extra', 'extra') }.to change(aargs, :valid?).from(false).to(true)
+          expect(aargs).to be_read_all_about_it
+          expect(aargs.etc).to eq(%w[extra extra])
         end
 
         it 'flag-value' do
-          expect { options.parse('anything', '--read-all-about-it=something', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
-          expect(options).to be_read_all_about_it
-          expect(options.etc).to eq(%w[extra extra])
+          expect { aargs.parse('anything', '--read-all-about-it=something', 'extra', 'extra') }.to change(aargs, :valid?).from(false).to(true)
+          expect(aargs).to be_read_all_about_it
+          expect(aargs.etc).to eq(%w[extra extra])
         end
 
         context 'with configured flags' do
           let(:flag_configs) { { read_all_about_it: :boolean } }
 
           it 'flag-config' do
-            expect { options.parse('anything', '--read-all-about-it', 'extra', 'extra') }.to change(options, :valid?).from(false).to(true)
-            expect(options).to be_read_all_about_it
-            expect(options.etc).to eq(%w[extra extra])
+            expect { aargs.parse('anything', '--read-all-about-it', 'extra', 'extra') }.to change(aargs, :valid?).from(false).to(true)
+            expect(aargs).to be_read_all_about_it
+            expect(aargs.etc).to eq(%w[extra extra])
           end
 
           def expect_usage
-            help = options.help
+            help = aargs.help
             puts help
             usage_line = help.shift
             expect(usage_line).to match(/^Usage: #{Pathname(__FILE__).basename}/)
