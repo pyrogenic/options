@@ -1,2 +1,3 @@
-# aargs
-Better Ruby Aargs Parser
+# `aargs`
+
+Better Ruby Options Parser
