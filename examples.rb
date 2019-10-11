@@ -1,8 +1,10 @@
+# frozen_string_literal: true
+
 require_relative 'lib/aargs'
 require 'pp'
 
 # Hit the ground running with no configuation at all
-aargs = aargs.new.parse('look', 'how', '--easy', '--this=is', 'to', 'use!')
+aargs = Aargs.new.parse('look', 'how', '--easy', '--this=is', 'to', 'use!')
 
 puts "prologue: #{aargs.prologue}"
 puts "it's so easy!" if aargs.easy?
@@ -15,7 +17,7 @@ puts "epilogue: #{aargs.epilogue}"
 # epilogue: ["to", "use!"]
 
 # Expose the same API for use in the IRB
-aargs = aargs.new.parse('look', 'how', :easy, :this => 'is')
+aargs = Aargs.new.parse('look', 'how', :easy, this: 'is')
 
 puts "prologue: #{aargs.prologue}"
 puts "it's so easy!" if aargs.easy?
@@ -26,7 +28,7 @@ puts "this #{aargs.this} it!"
 # this is it!
 
 # Epilogues are supported in IRB style, too!
-aargs = aargs.new.parse('look', 'how', :easy, {:this => 'is'}, 'to', 'use!')
+aargs = Aargs.new.parse('look', 'how', :easy, { this: 'is' }, 'to', 'use!')
 puts "epilogue: #{aargs.epilogue}"
 # epilogue: ["to", "use!"]
 
@@ -36,6 +38,5 @@ puts aargs.help
 # Usage: examples.rb [PROLOGUE ... [PROLOGUE]] [aargs] [EPILOGUE ... [EPILOGUE]]
 
 # Let's look at a more complete example.
-aargs = aargs.new(prologue: [:mode], flag_configs: {filename: 'file to operate on'})
+aargs = Aargs.new(prologue: [:mode], flag_configs: { filename: 'file to operate on' })
 puts aargs.help
-#.parse('look', 'how', '--easy', '--this=is', 'to', 'use!')
