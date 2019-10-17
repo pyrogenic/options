@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require "pathname"
+require 'pathname'
 
 # Basic aargs parser
 class Aargs
@@ -51,8 +51,8 @@ class Aargs
       return unless main == self
 
       aargs = begin
-                const_get("AARGS")
-              rescue => error
+                const_get('AARGS')
+              rescue NameError
                 warn("Missing #{main}::AARGS")
                 Aargs.new
               end
@@ -63,11 +63,11 @@ class Aargs
   end
 
   def self.kebab(sym)
-    sym.to_s.gsub(/[^[:alnum:]]/, "-")
+    sym.to_s.gsub(/[^[:alnum:]]/, '-')
   end
 
   def self.underscore(src)
-    src.gsub(/[^[:alnum:]]/, "_").to_sym
+    src.gsub(/[^[:alnum:]]/, '_').to_sym
   end
 
   def self.flagify_arg(arg)
@@ -219,12 +219,12 @@ class Aargs
   DEFAULT = Object.new
 
   def initialize(
-                 prologue: DEFAULT,
-                 flag_config: DEFAULT,
-                 flag_configs: nil,
-                 epilogue: DEFAULT,
-                 aliases: {},
-                 program: nil)
+    prologue: DEFAULT,
+    flag_config: DEFAULT,
+    flag_configs: nil,
+    epilogue: DEFAULT,
+    aliases: {},
+    program: nil)
     @program = program || begin
       %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
       file
@@ -257,7 +257,7 @@ class Aargs
       if optional
         @optional_prologue << key if optional
       else
-        raise "required prologue cannot follow optional prologue" unless @optional_prologue.empty?
+        raise 'required prologue cannot follow optional prologue' unless @optional_prologue.empty?
 
         @required_prologue << key
       end
@@ -280,7 +280,7 @@ class Aargs
       if optional
         @optional_epilogue << key if optional
       else
-        raise "required epilogue cannot follow optional epilogue" unless @optional_epilogue.empty?
+        raise 'required epilogue cannot follow optional epilogue' unless @optional_epilogue.empty?
 
         @required_epilogue << key
       end
@@ -342,22 +342,22 @@ class Aargs
 
   def inspect_flag(sym)
     arg = Aargs.kebab(sym)
-    return "#{arg.upcase}" if required?(sym)
+    return arg.upcase if required?(sym)
     return "[#{arg.upcase}]" if optional?(sym)
-    return "[aargs]" if sym == :any_key
-    return "[#{arg.to_s.upcase} ... [#{arg.to_s.upcase}]]" if splat?(sym)
+    return '[aargs]' if sym == :any_key
+    return "[#{arg.upcase} ... [#{arg.upcase}]]" if splat?(sym)
     return "--[no-]#{arg}" if boolean?(sym)
 
     "--#{arg}=VALUE"
   end
 
   def help
-    prologue_keys = [required_prologue, optional_prologue, prologue_key ? prologue_key : nil].map(&method(:Array)).flatten
-    epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key ? epilogue_key : nil].map(&method(:Array)).flatten
+    prologue_keys = [required_prologue, optional_prologue, prologue_key || nil].map(&method(:Array)).flatten
+    epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key || nil].map(&method(:Array)).flatten
     flag_keys = flag_configs.keys
     flag_keys << :any_key if flag_configs[:any_key]
     all_flags = prologue_keys + (flag_keys - prologue_keys) + epilogue_keys
-    usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(" ")}"
+    usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
     any_real_help = false
     lines = all_flags.map do |flag|
       config = flag_config(flag)
@@ -366,11 +366,11 @@ class Aargs
       real_help = config[:help]
       any_real_help ||= real_help
       flag_help = real_help || case config[:type]
-      when :boolean
-        "(switch)"
-      else
-        "(#{config[:type]})"
-      end
+                               when :boolean
+                                 '(switch)'
+                               else
+                                 "(#{config[:type]})"
+                               end
       [inspect_flag(flag), flag_help] if flag_help
     end.compact
     return [usage] if lines.empty? || !any_real_help
@@ -385,7 +385,7 @@ class Aargs
   end
 
   def parse(*args)
-    raise "Aargs are frozen once parsed" if @valid
+    raise 'Aargs are frozen once parsed' if @valid
 
     @parsed = Aargs.parse(args, aliases: aliases, flag_configs: flag_configs) || {}
     @values = @parsed[:flags] || {}
@@ -437,7 +437,7 @@ class Aargs
     return if actual_required_prologue.length <= parsed_prologue.length
 
     missing_flags = actual_required_prologue.drop(parsed_prologue.length)
-    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(", ")}"
+    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
   end
 
   # Validate that we have enough arguments given to satisfy our required prologue, taking into account any that were
@@ -449,7 +449,7 @@ class Aargs
     return if actual_required_epilogue.length <= parsed_epilogue.length
 
     missing_flags = actual_required_epilogue.drop(parsed_epilogue.length)
-    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(", ")}"
+    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
   end
 
   # Reverse-merge prologue values into {@link @values}

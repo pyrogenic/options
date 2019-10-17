@@ -275,8 +275,6 @@ RSpec.describe Aargs do
             expect(usage_line).to match(/^Usage: #{Pathname(__FILE__).basename}/)
             expect(usage_line).to match(/MODE/)
             expect(usage_line).to match(/\[ETC/)
-
-            expect(help.shift).to be_nil.or(match(/^$/))
             help
           end
 

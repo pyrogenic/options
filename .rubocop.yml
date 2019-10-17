@@ -1,3 +1,7 @@
+# Style:
+#   Exclude:
+#     - 'Gemfile'
+
 Metrics/LineLength:
   Max: 120
 
@@ -7,6 +11,9 @@ Style/TrailingCommaInArguments:
   EnforcedStyleForMultiline: comma
 Layout/MultilineMethodDefinitionBraceLayout:
   Enabled: false
+
+Metrics:
+  Severity: refactor
 
 # Metrics/AbcSize:
 #   Enabled: false
