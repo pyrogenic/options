@@ -5,6 +5,11 @@
 Metrics/LineLength:
   Max: 120
 
+Style/SymbolArray:
+  AutoCorrect: false
+Style/WordArray:
+  AutoCorrect: false
+
 Style/TrailingCommaInHashLiteral:
   EnforcedStyleForMultiline: comma
 Style/TrailingCommaInArguments:

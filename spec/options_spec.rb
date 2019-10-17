@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# rubocop:disable Style/SymbolArray
+
 require 'spec_helper'
 require 'aargs'
 require 'pp'
@@ -61,7 +63,7 @@ RSpec.describe Aargs do
     it 'literals' do
       expect(described_class.parse(['f', '--', '-f'])).to match(
         prologue: ['f'],
-        epilogue: ['-f']
+        epilogue: ['-f'],
       )
     end
     it 'flag' do
@@ -319,3 +321,5 @@ RSpec.describe Aargs do
     end
   end
 end
+
+# rubocop:enable Style/SymbolArray
