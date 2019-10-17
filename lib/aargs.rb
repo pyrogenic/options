@@ -1,15 +1,73 @@
 # frozen_string_literal: true
 
-require 'pathname'
+require "pathname"
 
 # Basic aargs parser
 class Aargs
+  # Auto-invoke Container#main if it's the executed source file
+  # `main` is invoked as soon as it is defined, so make sure to do it last!
+  module Main
+    def self.included(main_class)
+      cc = caller.select { |e| e.include?($PROGRAM_NAME) }
+      return if cc.empty?
+
+      pp(included: main_class)
+      @main = main_class
+    end
+
+    def self.extended(main_class)
+      cc = caller.select { |e| e.include?($PROGRAM_NAME) }
+      return if cc.empty?
+
+      pp(extended: main_class)
+      @main = main_class
+    end
+
+    def self.identified_main
+      @main
+    end
+
+    # def self.method_added(name)
+    #   pp(module: 1, name: name, main: @main)
+    #   #unless respond_to?(:define_aargs) ||
+    #   main(const_get(:AARGS))
+    # end
+    def method_added(name)
+      pp(method_added: name)
+    end
+
+    def class_method_added(name)
+      pp(class_method_added: name)
+    end
+
+    def self.class_method_added(name)
+      pp(self_class_method_added: name)
+    end
+
+    def singleton_method_added(name)
+      return unless name == :main
+
+      main = Main.identified_main
+      return unless main == self
+
+      aargs = begin
+                const_get("AARGS")
+              rescue => error
+                warn("Missing #{main}::AARGS")
+                Aargs.new
+              end
+
+      aargs.parse(ARGV)
+      send(name, aargs)
+    end
+  end
+
   def self.kebab(sym)
-    sym.to_s.gsub(/[^[:alnum:]]/, '-')
+    sym.to_s.gsub(/[^[:alnum:]]/, "-")
   end
 
   def self.underscore(src)
-    src.gsub(/[^[:alnum:]]/, '_').to_sym
+    src.gsub(/[^[:alnum:]]/, "_").to_sym
   end
 
   def self.flagify_arg(arg)
@@ -81,7 +139,6 @@ class Aargs
         else
           raise "Unexpected boolean '#{arg}' after set to value #{flags[sym].inspect}"
         end
-
       when /^--(?<no>no-)?(?<flag>[[:alnum:]-]+)(?:=(?<value>.*))?$/
         flag = Regexp.last_match[:flag]
         value = Regexp.last_match[:value]
@@ -118,7 +175,6 @@ class Aargs
             flags[sym] = [flags[sym], value]
           end
         end
-
       else
         if last_sym
           case flags[last_sym]
@@ -163,12 +219,12 @@ class Aargs
   DEFAULT = Object.new
 
   def initialize(
-    prologue: DEFAULT,
-    flag_config: DEFAULT,
-    flag_configs: nil,
-    epilogue: DEFAULT,
-    aliases: {},
-    program: nil)
+                 prologue: DEFAULT,
+                 flag_config: DEFAULT,
+                 flag_configs: nil,
+                 epilogue: DEFAULT,
+                 aliases: {},
+                 program: nil)
     @program = program || begin
       %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
       file
@@ -201,7 +257,7 @@ class Aargs
       if optional
         @optional_prologue << key if optional
       else
-        raise 'required prologue cannot follow optional prologue' unless @optional_prologue.empty?
+        raise "required prologue cannot follow optional prologue" unless @optional_prologue.empty?
 
         @required_prologue << key
       end
@@ -224,7 +280,7 @@ class Aargs
       if optional
         @optional_epilogue << key if optional
       else
-        raise 'required epilogue cannot follow optional epilogue' unless @optional_epilogue.empty?
+        raise "required epilogue cannot follow optional epilogue" unless @optional_epilogue.empty?
 
         @required_epilogue << key
       end
@@ -301,7 +357,7 @@ class Aargs
     flag_keys = flag_configs.keys
     flag_keys << :any_key if flag_configs[:any_key]
     all_flags = prologue_keys + (flag_keys - prologue_keys) + epilogue_keys
-    usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
+    usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(" ")}"
     any_real_help = false
     lines = all_flags.map do |flag|
       config = flag_config(flag)
@@ -310,18 +366,18 @@ class Aargs
       real_help = config[:help]
       any_real_help ||= real_help
       flag_help = real_help || case config[:type]
-                               when :boolean
-                                 '(switch)'
-                               else
-                                 "(#{config[:type]})"
-                               end
+      when :boolean
+        "(switch)"
+      else
+        "(#{config[:type]})"
+      end
       [inspect_flag(flag), flag_help] if flag_help
     end.compact
     return [usage] if lines.empty? || !any_real_help
 
     width = lines.map(&:first).map(&:length).max
     lines.map! { |(flag, help)| format("  %<flag>-#{width}s : %<help>s", flag: flag, help: help) }
-    [usage, nil] + lines
+    [usage] + lines
   end
 
   def valid?
@@ -329,7 +385,7 @@ class Aargs
   end
 
   def parse(*args)
-    raise 'Aargs are frozen once parsed' if @valid
+    raise "Aargs are frozen once parsed" if @valid
 
     @parsed = Aargs.parse(args, aliases: aliases, flag_configs: flag_configs) || {}
     @values = @parsed[:flags] || {}
@@ -381,7 +437,7 @@ class Aargs
     return if actual_required_prologue.length <= parsed_prologue.length
 
     missing_flags = actual_required_prologue.drop(parsed_prologue.length)
-    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
+    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(", ")}"
   end
 
   # Validate that we have enough arguments given to satisfy our required prologue, taking into account any that were
@@ -393,7 +449,7 @@ class Aargs
     return if actual_required_epilogue.length <= parsed_epilogue.length
 
     missing_flags = actual_required_epilogue.drop(parsed_epilogue.length)
-    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(', ')}"
+    raise "Missing positional arguments: #{missing_flags.map(&method(:inspect_flag)).join(", ")}"
   end
 
   # Reverse-merge prologue values into {@link @values}
