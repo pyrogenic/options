@@ -7,19 +7,15 @@ class Aargs
   # Auto-invoke Container#main if it's the executed source file
   # `main` is invoked as soon as it is defined, so make sure to do it last!
   module Main
-    def self.included(main_class)
-      cc = caller.select { |e| e.include?($PROGRAM_NAME) }
-      return if cc.empty?
-
-      pp(included: main_class)
-      @main = main_class
+    def self.const_missing(name)
+      super unless identified_main && name == :AARGS
+      warn("Missing #{identified_main.name}::AARGS")
+      const_set('AARGS', Aargs.new)
     end
 
     def self.extended(main_class)
-      cc = caller.select { |e| e.include?($PROGRAM_NAME) }
-      return if cc.empty?
+      return unless caller.detect { |e| e.include?($PROGRAM_NAME) }
 
-      pp(extended: main_class)
       @main = main_class
     end
 
@@ -47,18 +43,9 @@ class Aargs
     def singleton_method_added(name)
       return unless name == :main
 
-      main = Main.identified_main
-      return unless main == self
+      return unless Main.identified_main == self
 
-      aargs = begin
-                const_get('AARGS')
-              rescue NameError
-                warn("Missing #{main}::AARGS")
-                Aargs.new
-              end
-
-      aargs.parse(ARGV)
-      send(name, aargs)
+      send(name, AARGS.parse(ARGV))
     end
   end
 
