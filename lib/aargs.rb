@@ -256,6 +256,10 @@ class Aargs
 
   DEFAULT = Object.new
 
+  def explicit?(prologue)
+    prologue && prologue != DEFAULT
+  end
+
   def initialize(
     prologue: DEFAULT,
     flag_config: DEFAULT,
@@ -268,9 +272,9 @@ class Aargs
       file
     end
     @aliases = aliases.freeze
-    prologue_set = prologue && prologue != DEFAULT
-    flag_configs_set = flag_configs && flag_configs != DEFAULT
-    epilogue_set = epilogue && epilogue != DEFAULT
+    prologue_set = explicit?(prologue)
+    flag_configs_set = explicit?(flag_configs)
+    epilogue_set = explicit?(epilogue)
     prologue = epilogue_set || flag_configs_set ? false : true if prologue == DEFAULT
     initialize_prologue(prologue)
     flag_config = flag_configs_set ? false : true if flag_config == DEFAULT
