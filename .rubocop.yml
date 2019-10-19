@@ -14,7 +14,7 @@ Layout/MultilineMethodDefinitionBraceLayout:
   Enabled: false
 
 Metrics:
-  Severity: convention
+  Severity: refactor
 
 # Metrics/AbcSize:
 #   Enabled: false

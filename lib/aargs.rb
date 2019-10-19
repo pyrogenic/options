@@ -88,107 +88,118 @@ class Aargs
     args.map(&method(:flagify_arg)).flatten
   end
 
-  def self.parse(args_or_argv, aliases: {}, flag_configs: {})
-    argv = to_argv(*args_or_argv)
+  class ParseState
+    attr_accessor :aliases, :flag_configs, :literal_only, :prologue, :epilogue, :flags, :last_sym, :last_sym_pending
+    def initialize(aliases, flag_configs)
+      @literal_only = false
+      @prologue = []
+      @epilogue = []
+      @flags = {}
+      @last_sym = nil
+      @last_sym_pending = nil
 
-    literal_only = false
-    prologue = []
-    epilogue = []
-    flags = {}
-    last_sym = nil
-    last_sym_pending = nil
+      @aliases = aliases
+      @flag_configs = flag_configs
+    end
 
-    resolve = lambda do |src|
+    def resolve(src)
       raise "Missing value after '#{last_sym_pending}'" if last_sym_pending
 
-      sym = underscore(src)
+      sym = Aargs.underscore(src)
       aliases[sym] || sym
     end
 
-    argv.each do |arg|
-      if literal_only
-        epilogue << arg
-        next
-      end
-      case arg
-      when /^--$/
-        literal_only = true
-        last_sym = nil
-      when /^-([[:alnum:]])$/
-        last_sym = sym = resolve.call(Regexp.last_match(1))
-        case flags[sym]
-        when true
-          flags[sym] = 2
-        when Integer
-          flags[sym] += 1
-        when nil
-          flags[sym] = true
-        else
-          raise "Unexpected boolean '#{arg}' after set to value #{flags[sym].inspect}"
+    def parse(argv)
+      argv.each do |arg|
+        if literal_only
+          epilogue << arg
+          next
         end
-      when /^--(?<no>no-)?(?<flag>[[:alnum:]-]+)(?:=(?<value>.*))?$/
-        flag = Regexp.last_match[:flag]
-        value = Regexp.last_match[:value]
-        no = Regexp.last_match[:no]
-        sym = resolve.call(flag)
-        boolean = boolean?(sym, flag_configs: flag_configs)
-        if no
-          raise "Unexpected value specified with no- prefix: #{arg}" unless value.nil?
-
-          flags[sym] = false
-          last_sym = nil
-        elsif value.nil?
-          last_sym = boolean ? nil : sym
+        case arg
+        when /^--$/
+          self.literal_only = true
+          self.last_sym = nil
+        when /^-([[:alnum:]])$/
+          self.last_sym = sym = resolve(Regexp.last_match(1))
           case flags[sym]
           when true
             flags[sym] = 2
           when Integer
             flags[sym] += 1
-          when nil, false
+          when nil
             flags[sym] = true
           else
-            last_sym_pending = arg
+            raise "Unexpected boolean '#{arg}' after set to value #{flags[sym].inspect}"
+          end
+        when /^--(?<no>no-)?(?<flag>[[:alnum:]-]+)(?:=(?<value>.*))?$/
+          flag = Regexp.last_match[:flag]
+          value = Regexp.last_match[:value]
+          no = Regexp.last_match[:no]
+          sym = resolve(flag)
+          boolean = Aargs.boolean?(sym, flag_configs: flag_configs)
+          if no
+            raise "Unexpected value specified with no- prefix: #{arg}" unless value.nil?
+
+            flags[sym] = false
+            self.last_sym = nil
+          elsif value.nil?
+            self.last_sym = boolean ? nil : sym
+            case flags[sym]
+            when true
+              flags[sym] = 2
+            when Integer
+              flags[sym] += 1
+            when nil, false
+              flags[sym] = true
+            else
+              self.last_sym_pending = arg
+            end
+          else
+            raise "Unexpected value for #{inspect_flag(arg)}: #{value.inspect}" if boolean
+
+            self.last_sym = nil
+            case flags[sym]
+            when nil
+              flags[sym] = value
+            when Array
+              flags[sym] << value
+            else
+              flags[sym] = [flags[sym], value]
+            end
           end
         else
-          raise "Unexpected value for #{inspect_flag(arg)}: #{value.inspect}" if boolean
-
-          last_sym = nil
-          case flags[sym]
-          when nil
-            flags[sym] = value
-          when Array
-            flags[sym] << value
-          else
-            flags[sym] = [flags[sym], value]
+          if last_sym
+            case flags[last_sym]
+            when true
+              flags[last_sym] = arg
+            when Array
+              flags[last_sym] << arg
+            else
+              flags[last_sym] = [flags[last_sym], arg]
+            end
+            self.last_sym_pending = nil
+          elsif flags.empty?
+            prologue << arg
+          else # first non-switch after switches + values
+            self.literal_only = true
+            epilogue << arg
           end
         end
-      else
-        if last_sym
-          case flags[last_sym]
-          when true
-            flags[last_sym] = arg
-          when Array
-            flags[last_sym] << arg
-          else
-            flags[last_sym] = [flags[last_sym], arg]
-          end
-          last_sym_pending = nil
-        elsif flags.empty?
-          prologue << arg
-        else # first non-switch after switches + values
-          literal_only = true
-          epilogue << arg
-        end
+        next if arg.nil?
       end
-      next if arg.nil?
-    end
-    raise "Missing value after '#{last_sym_pending}'" if last_sym_pending
+      raise "Missing value after '#{last_sym_pending}'" if last_sym_pending
 
-    result = {}
-    result[:prologue] = prologue unless prologue.empty?
-    result[:flags] = flags unless flags.empty?
-    result[:epilogue] = epilogue unless epilogue.empty?
-    result unless result.empty?
+      result = {}
+      result[:prologue] = prologue unless prologue.empty?
+      result[:flags] = flags unless flags.empty?
+      result[:epilogue] = epilogue unless epilogue.empty?
+      result unless result.empty?
+    end
+  end
+
+  def self.parse(args_or_argv, aliases: {}, flag_configs: {})
+    argv = to_argv(*args_or_argv)
+    ParseState.new(aliases, flag_configs).parse(argv)
   end
 
   # @return Hash
