@@ -14,7 +14,7 @@ Layout/MultilineMethodDefinitionBraceLayout:
   Enabled: false
 
 Metrics:
-  Severity: refactor
+  Severity: convention
 
 # Metrics/AbcSize:
 #   Enabled: false
@@ -28,7 +28,8 @@ Metrics/ClassLength:
 # Metrics/CyclomaticComplexity:
 #   Enabled: false
 
-# Metrics/MethodLength:
+Metrics/MethodLength:
+  Max: 15
 #   Enabled: false
 
 # Metrics/PerceivedComplexity:
