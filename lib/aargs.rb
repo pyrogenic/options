@@ -23,23 +23,6 @@ class Aargs
       @main
     end
 
-    # def self.method_added(name)
-    #   pp(module: 1, name: name, main: @main)
-    #   #unless respond_to?(:define_aargs) ||
-    #   main(const_get(:AARGS))
-    # end
-    def method_added(name)
-      pp(method_added: name)
-    end
-
-    def class_method_added(name)
-      pp(class_method_added: name)
-    end
-
-    def self.class_method_added(name)
-      pp(self_class_method_added: name)
-    end
-
     def singleton_method_added(name)
       return unless name == :main
 
@@ -273,9 +256,6 @@ class Aargs
   end
 
   def initialize(prologue: DEFAULT, default_flag_config: DEFAULT, flag_configs: nil, epilogue: DEFAULT, aliases: {}, program: nil)
-    # puts
-    # puts
-    # pp(initialize: local_variables.map { |k| [k, eval(k.to_s)] }.to_h)
     @program = program || begin
       %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
       file
@@ -301,17 +281,7 @@ class Aargs
     instance_variable_set("@optional_#{prefix}logue", optional)
     return unless set_default_key(prefix, value).nil?
 
-    Array(value).each do |key|
-      /^(?<key>[[:alnum:]-]*)(?<explicit_optional>\?)?$/ =~ key
-      key = key.to_sym
-      if explicit_optional
-        optional << key
-      else
-        raise "required #{prefix}logue cannot follow optional #{prefix}logue" unless optional.empty?
-
-        required << key
-      end
-    end
+    populate_required_and_optional(prefix, value, required, optional)
     required.freeze
     optional.freeze
   end
@@ -324,6 +294,20 @@ class Aargs
                     value
                   end
     instance_variable_set("@#{prefix}logue_key", default_key)
+  end
+
+  def populate_required_and_optional(prefix, value, required, optional)
+    Array(value).each do |key|
+      /^(?<key>[[:alnum:]-]*)(?<explicit_optional>\?)?$/ =~ key
+      key = key.to_sym
+      if explicit_optional
+        optional << key
+      else
+        raise "required #{prefix}logue cannot follow optional #{prefix}logue" unless optional.empty?
+
+        required << key
+      end
+    end
   end
 
   def initialize_flag_configs(default_flag_config:, flag_configs:)
@@ -473,7 +457,6 @@ class Aargs
   def respond_to_missing?(sym, *_)
     /^(?<key>.*?)(?:(?<_boolean>\?))?$/ =~ sym
     key = key.to_sym
-    # puts(sym: sym, key: key, values: @values)
     return super unless api_key?(key)
 
     true
@@ -499,7 +482,6 @@ class Aargs
   def validate_sufficient_prologue(parsed_prologue)
     return if prologue_key
 
-    # pp(required_prologue: required_prologue, values: @values)
     actual_required_prologue = required_prologue - @values.keys
     return if actual_required_prologue.length <= parsed_prologue.length
 
@@ -535,26 +517,37 @@ class Aargs
     consumed_prologue
   end
 
+  def epilogue_keys
+    @epilogue_keys ||= [required_epilogue, optional_epilogue].map(&method(:Array)).flatten
+  end
+
   # Any extra prologue values become the beginning of the epilogue.
+  def adopt_extra_prologue(parsed_prologue, consumed_prologue)
+    parsed_prologue.drop(consumed_prologue.length).concat(Array(@parsed[:epilogue]))
+  end
+
+  def nil_value?(_key, value)
+    # Avoid nil values since they're never returned from {@link Aargs.parse}
+    value.nil?
+  end
+
   # Reverse-merge epilogue values into {@link @values}
+  def consume_epilogue(parsed_epilogue)
+    # Remove any epilogue keys whose values appeared as flags:
+    expected_epilogue = epilogue_keys - @values.keys
+    # Convert the epilogue into a hash based on the epilogue keys we're still waiting for:
+    consumed_epilogue = expected_epilogue.zip(parsed_epilogue).reject(&method(:nil_value?)).to_h
+    # Reverse-merge epilogue values into {@link @values}
+    @values = consumed_epilogue.merge(@values)
+    # Return the remaining epilogue elements
+    parsed_epilogue.drop(consumed_epilogue.length)
+  end
+
   # @raise if there's an epilogue given but we don't expect one
   # @see epilogue_key
   def apply_epilogue(parsed_prologue, consumed_prologue)
-    parsed_epilogue = parsed_prologue.drop(consumed_prologue.length).concat(Array(@parsed[:epilogue]))
-
-    # TODO: allow ... after required/optional consumed
-
-    # Remove any epilogue keys whose values appeared as flags:
-    epilogue_keys = [required_epilogue, optional_epilogue].map(&method(:Array)).flatten
-    expected_epilogue = epilogue_keys - @values.keys
-    # Convert the epilogue into a hash based on the epilogue keys we're still waiting for:
-    consumed_epilogue = expected_epilogue.zip(parsed_epilogue).reject do |_, v|
-      # Avoid nil values since they're never returned from {@link Aargs.parse}
-      v.nil?
-    end.to_h
-    @values = consumed_epilogue.merge(@values)
-
-    epilogue = parsed_epilogue.drop(consumed_epilogue.length)
+    parsed_epilogue = adopt_extra_prologue(parsed_prologue, consumed_prologue)
+    epilogue = consume_epilogue(parsed_epilogue)
     return if epilogue.empty?
     raise "Unexpected epilogue: #{epilogue.inspect}" unless epilogue_key
 
