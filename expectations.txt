@@ -1,0 +1,195 @@
+
+Randomized with seed 60034
+
+Aargs
+  prologue/epilogue parsting
+    prologue (FAILED - 1)
+  parser
+    alias
+    flag
+    long-flag
+    literal
+    inversion
+    empty
+    literals
+    error conditions
+      flag after value
+    both
+      behaves like IRB
+        to_argv
+        parse
+      behaves like IRB
+        to_argv
+        parse
+    kwargs
+      behaves like IRB
+        to_argv
+        parse
+      behaves like IRB
+        parse
+        to_argv
+      behaves like IRB
+        to_argv
+        parse
+      behaves like IRB
+        to_argv
+        parse
+      behaves like IRB
+        to_argv
+        parse
+    long-flag
+      alone
+      with epilog
+      with prologue
+      with both
+    args
+      behaves like IRB
+        parse
+        to_argv
+      behaves like IRB
+        parse
+        to_argv
+  config
+{:epilogue=>true, :result=>nil}
+    constructs
+    no configuration
+{:epilogue=>true, :result=>nil}
+      #parse returns self
+{:epilogue=>true, :result=>nil}
+      empty
+{:epilogue=>true, :result=>nil}
+#<Aargs:0x00007feb952a9850
+ @aliases={},
+ @epilogue_key=:epilogue,
+ @flag_configs={},
+ @optional_epilogue=[],
+ @optional_prologue=[],
+ @program="options_spec.rb",
+ @prologue_key=:prologue,
+ @required_epilogue=[],
+ @required_prologue=[],
+ @valid=false>
+      prologue
+    required prologue
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[:mode], :values=>{:mode=>"anything"}}
+      as flag value
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[:mode], :values=>{}}
+      valid
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[:mode], :values=>{:mode=>"anything"}}
+      as flag =
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[:mode], :values=>{}}
+      empty
+      with epilogue
+{:epilogue=>:etc, :result=>nil}
+{:required_prologue=>[:mode], :values=>{}}
+        simple
+{:epilogue=>:etc, :result=>nil}
+{:required_prologue=>[:mode], :values=>{:read_all_about_it=>true}}
+        flag-hardcore
+{:epilogue=>:etc, :result=>nil}
+{:required_prologue=>[:mode], :values=>{:read_all_about_it=>"something"}}
+        flag-value
+{:epilogue=>:etc, :result=>nil}
+{:required_prologue=>[:mode], :values=>{:read_all_about_it=>true}}
+        considers extra prologue as part of the epilogue
+{:epilogue=>:etc, :result=>nil}
+{:required_prologue=>[:mode], :values=>{}}
+        double
+        with configured flags
+{:epilogue=>:etc, :result=>nil}
+Usage: options_spec.rb MODE --[no-]read-all-about-it [ETC ... [ETC]]
+          help
+{:epilogue=>:etc, :result=>nil}
+{:required_prologue=>[:mode], :values=>{:read_all_about_it=>true}}
+          flag-config
+          with documentation
+{:epilogue=>:etc, :result=>nil}
+Usage: options_spec.rb MODE --[no-]read-all-about-it [ETC ... [ETC]]
+  MODE                     : operation mode
+  --[no-]read-all-about-it : (switch)
+            help
+            better help
+{:epilogue=>:etc, :result=>nil}
+Usage: options_spec.rb MODE --[no-]read-all-about-it [ETC ... [ETC]]
+  MODE                     : operation mode
+  --[no-]read-all-about-it : actually read stuff
+              help
+      without epilogue
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[:mode], :values=>{}}
+        unexpected epilogue
+    optional prologue
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[], :values=>{}}
+      empty
+{:epilogue=>false, :result=>nil}
+{:required_prologue=>[], :values=>{}}
+      valid
+  utility functions
+    generates symbols correctly
+    generates kebab-case correctly
+    behaves like to_argv
+      handles [:flag]
+      produces an ARGV that results in the same parser output
+    behaves like to_argv
+      produces an ARGV that results in the same parser output
+      handles [:flag, {:another=>"value"}]
+    behaves like to_argv
+      handles []
+      produces an ARGV that results in the same parser output
+    behaves like to_argv
+      produces an ARGV that results in the same parser output
+      handles [:flag, {:another=>"value"}, "epilogue"]
+    behaves like to_argv
+      handles ["prologue", "prologue2", :flag, "intervalue", {:another=>["value1", "value2"]}, "epilogue"]
+      produces an ARGV that results in the same parser output
+    behaves like to_argv
+      produces an ARGV that results in the same parser output
+      handles ["value"]
+
+Failures:
+
+  1) Aargs prologue/epilogue parsting prologue
+     Failure/Error: expect(described_class.send(:initialize_prologue, [:mode?])).to eq([:mode])
+
+     NoMethodError:
+       undefined method `initialize_prologue' for Aargs:Class
+       Did you mean?  initialize_clone
+     # ./spec/options_spec.rb:332:in `block (3 levels) in <top (required)>'
+
+Top 10 slowest examples (0.04166 seconds, 41.0% of total time):
+  Aargs config required prologue as flag value
+    0.0105 seconds ./spec/options_spec.rb:218
+  Aargs config no configuration empty
+    0.00446 seconds ./spec/options_spec.rb:166
+  Aargs config required prologue with epilogue with configured flags with documentation help
+    0.00442 seconds ./spec/options_spec.rb:295
+  Aargs config required prologue without epilogue unexpected epilogue
+    0.00352 seconds ./spec/options_spec.rb:228
+  Aargs config required prologue with epilogue with configured flags flag-config
+    0.00341 seconds ./spec/options_spec.rb:267
+  Aargs config no configuration prologue
+    0.00331 seconds ./spec/options_spec.rb:175
+  Aargs config required prologue with epilogue flag-hardcore
+    0.00315 seconds ./spec/options_spec.rb:252
+  Aargs config required prologue with epilogue considers extra prologue as part of the epilogue
+    0.00303 seconds ./spec/options_spec.rb:246
+  Aargs config optional prologue empty
+    0.003 seconds ./spec/options_spec.rb:185
+  Aargs config required prologue with epilogue flag-value
+    0.00286 seconds ./spec/options_spec.rb:258
+
+Finished in 0.10164 seconds (files took 0.34443 seconds to load)
+65 examples, 1 failure
+
+Failed examples:
+
+rspec ./spec/options_spec.rb:331 # Aargs prologue/epilogue parsting prologue
+
+Randomized with seed 60034
+
+Coverage report generated for RSpec to /Users/josh/Dropbox/Projects/aargs/coverage. 284 / 333 LOC (85.29%) covered.

@@ -34,3 +34,8 @@ Metrics/MethodLength:
 
 # Metrics/PerceivedComplexity:
 #   Enabled: false
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+    

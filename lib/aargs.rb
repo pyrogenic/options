@@ -166,7 +166,7 @@ class Aargs
       end
     end
 
-    def parse_value_flag(flag:, value:, no:) # rubocop:disable Naming/UncommunicativeMethodParamName
+    def parse_value_flag(flag:, value:, no:)
       sym = resolve(flag)
       boolean = Aargs.boolean?(sym, flag_configs: flag_configs)
       if no
@@ -260,13 +260,22 @@ class Aargs
     prologue && prologue != DEFAULT
   end
 
-  def initialize(
-    prologue: DEFAULT,
-    flag_config: DEFAULT,
-    flag_configs: nil,
-    epilogue: DEFAULT,
-    aliases: {},
-    program: nil)
+  def if_default(prologue, value)
+    return value if prologue == DEFAULT
+
+    prologue
+  end
+
+  def if_default_not(prologue, value)
+    return !value if prologue == DEFAULT
+
+    prologue
+  end
+
+  def initialize(prologue: DEFAULT, default_flag_config: DEFAULT, flag_configs: nil, epilogue: DEFAULT, aliases: {}, program: nil)
+    # puts
+    # puts
+    # pp(initialize: local_variables.map { |k| [k, eval(k.to_s)] }.to_h)
     @program = program || begin
       %r{^(?:.*/)?(?<file>[^/]+):\d+:in} =~ caller.first
       file
@@ -275,60 +284,52 @@ class Aargs
     prologue_set = explicit?(prologue)
     flag_configs_set = explicit?(flag_configs)
     epilogue_set = explicit?(epilogue)
-    prologue = epilogue_set || flag_configs_set ? false : true if prologue == DEFAULT
-    initialize_prologue(prologue)
-    flag_config = flag_configs_set ? false : true if flag_config == DEFAULT
-    @flag_configs = Hash.new(flag_config).merge(flag_configs || {}).freeze
-    epilogue = prologue_set || flag_configs_set ? false : true if epilogue == DEFAULT
-    initialize_epilogue(epilogue)
+    prologue = if_default_not(prologue, epilogue_set || flag_configs_set)
+    initialize_epiprologue(:pro, prologue)
+    initialize_flag_configs(default_flag_config: default_flag_config, flag_configs: flag_configs)
+    epilogue = if_default_not(epilogue, prologue_set || flag_configs_set)
+    initialize_epiprologue(:epi, epilogue)
     @valid = false
   end
 
   private
 
-  def initialize_prologue(prologue)
-    @required_prologue = []
-    @optional_prologue = []
-    @prologue_key = :prologue if prologue == true
-    @prologue_key = false if prologue == false
-    return unless @prologue_key.nil?
+  def initialize_epiprologue(prefix, value)
+    required = []
+    optional = []
+    instance_variable_set("@required_#{prefix}logue", required)
+    instance_variable_set("@optional_#{prefix}logue", optional)
+    return unless set_default_key(prefix, value).nil?
 
-    Array(prologue).each do |key|
-      /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
+    Array(value).each do |key|
+      /^(?<key>[[:alnum:]-]*)(?<explicit_optional>\?)?$/ =~ key
       key = key.to_sym
-      if optional
-        @optional_prologue << key if optional
+      if explicit_optional
+        optional << key
       else
-        raise 'required prologue cannot follow optional prologue' unless @optional_prologue.empty?
+        raise "required #{prefix}logue cannot follow optional #{prefix}logue" unless optional.empty?
 
-        @required_prologue << key
+        required << key
       end
     end
-    @required_prologue.freeze
-    @optional_prologue.freeze
+    required.freeze
+    optional.freeze
   end
 
-  def initialize_epilogue(epilogue)
-    @required_epilogue = []
-    @optional_epilogue = []
-    @epilogue_key = :epilogue if epilogue == true
-    @epilogue_key = false if epilogue == false
-    @epilogue_key = epilogue if epilogue.is_a?(Symbol)
-    return unless @epilogue_key.nil?
+  def set_default_key(prefix, value)
+    default_key = case value
+                  when true
+                    "#{prefix}logue".to_sym
+                  when false, Symbol
+                    value
+                  end
+    instance_variable_set("@#{prefix}logue_key", default_key)
+  end
 
-    Array(epilogue).each do |key|
-      /^(?<key>[[:alnum:]-]*)(?<optional>\?)?$/ =~ key
-      key = key.to_sym
-      if optional
-        @optional_epilogue << key if optional
-      else
-        raise 'required epilogue cannot follow optional epilogue' unless @optional_epilogue.empty?
-
-        @required_epilogue << key
-      end
-    end
-    @required_epilogue = @required_epilogue.freeze
-    @optional_epilogue = @optional_epilogue.freeze
+  def initialize_flag_configs(default_flag_config:, flag_configs:)
+    flag_configs_set = explicit?(flag_configs)
+    default_flag_config = if_default_not(default_flag_config, flag_configs_set)
+    @flag_configs = Hash.new(default_flag_config).merge(flag_configs || {}).freeze
   end
 
   public
@@ -394,32 +395,56 @@ class Aargs
   end
 
   def help
-    prologue_keys = [required_prologue, optional_prologue, prologue_key || nil].map(&method(:Array)).flatten
-    epilogue_keys = [required_epilogue, optional_epilogue, epilogue_key || nil].map(&method(:Array)).flatten
-    flag_keys = flag_configs.keys
-    flag_keys << :any_key if flag_configs[:any_key]
-    all_flags = prologue_keys + (flag_keys - prologue_keys) + epilogue_keys
-    usage = "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
-    any_real_help = false
-    lines = all_flags.map do |flag|
-      config = flag_config(flag)
-      next unless config
+    lines = help_all_flags.map(&method(:flag_help)).compact
+    return [basic_usage(help_all_flags)] unless any_real_help?(lines)
 
-      real_help = config[:help]
-      any_real_help ||= real_help
-      flag_help = real_help || case config[:type]
-                               when :boolean
-                                 '(switch)'
-                               else
-                                 "(#{config[:type]})"
-                               end
-      [inspect_flag(flag), flag_help] if flag_help
-    end.compact
-    return [usage] if lines.empty? || !any_real_help
+    [basic_usage(help_all_flags)] + help_format_lines(lines)
+  end
 
-    width = lines.map(&:first).map(&:length).max
-    lines.map! { |(flag, help)| format("  %<flag>-#{width}s : %<help>s", flag: flag, help: help) }
-    [usage] + lines
+  def help_all_flags
+    @help_all_flags ||= begin
+      flag_keys = flag_configs.keys
+      flag_keys << :any_key if flag_configs[:any_key]
+      help_prologue_keys + (flag_keys - help_prologue_keys) + help_epilogue_keys
+    end
+  end
+
+  def any_real_help?(help_lines)
+    return if help_lines.empty?
+
+    help_lines.any? { |e| e[:real_help] }
+  end
+
+  def help_prologue_keys
+    [required_prologue, optional_prologue, prologue_key || nil].map(&method(:Array)).flatten
+  end
+
+  def help_epilogue_keys
+    [required_epilogue, optional_epilogue, epilogue_key || nil].map(&method(:Array)).flatten
+  end
+
+  def help_format_lines(lines)
+    width = lines.map { |e| e[:flag] }.map(&:length).max
+    lines.map do |flag:, help:, **_|
+      format("  %<flag>-#{width}s : %<help>s", flag: flag, help: help)
+    end
+  end
+
+  def basic_usage(all_flags)
+    "Usage: #{@program} #{all_flags.map(&method(:inspect_flag)).join(' ')}"
+  end
+
+  def flag_help(flag)
+    return unless (config = flag_config(flag))
+
+    real_help = config[:help]
+    flag_help = real_help || case config[:type]
+                             when :boolean
+                               '(switch)'
+                             else
+                               "(#{config[:type]})"
+                             end
+    { real_help: real_help, flag: inspect_flag(flag), help: flag_help } if flag_help
   end
 
   def valid?
@@ -474,7 +499,7 @@ class Aargs
   def validate_sufficient_prologue(parsed_prologue)
     return if prologue_key
 
-    pp(required_prologue: required_prologue, values: @values)
+    # pp(required_prologue: required_prologue, values: @values)
     actual_required_prologue = required_prologue - @values.keys
     return if actual_required_prologue.length <= parsed_prologue.length
 

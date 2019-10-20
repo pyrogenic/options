@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-# rubocop:disable Style/SymbolArray
-
 require 'spec_helper'
 require 'aargs'
 require 'pp'
@@ -155,7 +153,7 @@ RSpec.describe Aargs do
       args[:prologue] = prologue unless prologue.nil?
       args[:flag_configs] = flag_configs unless flag_configs.nil?
       args[:epilogue] = epilogue unless epilogue.nil?
-      described_class.new(**args)
+      described_class.new(args)
     end
 
     it 'constructs' do
@@ -250,9 +248,9 @@ RSpec.describe Aargs do
         end
 
         it 'flag-hardcore' do
-          expect { aargs.parse('anything', '--read-all-about-it', '--', 'extra', 'extra') }.to change(aargs, :valid?).from(false).to(true)
+          expect { aargs.parse('anything', '--read-all-about-it', '--', 'extra1', 'extra2') }.to change(aargs, :valid?).from(false).to(true)
           expect(aargs).to be_read_all_about_it
-          expect(aargs.etc).to eq(%w[extra extra])
+          expect(aargs.etc).to eq(%w[extra1 extra2])
         end
 
         it 'flag-value' do
@@ -320,6 +318,50 @@ RSpec.describe Aargs do
       end
     end
   end
-end
 
-# rubocop:enable Style/SymbolArray
+  context 'prologue/epilogue parsing' do
+    # {:prologue=>true,
+    #  :result=>nil,
+    #  :required_prologue=>[],
+    #  :optional_prologue=>[],
+    #  :prologue_key=>:prologue}
+    #
+    #  {:prologue=>[:mode],
+    #  :result=>[],
+    #  :required_prologue=>[:mode],
+    #  :optional_prologue=>[],
+    #  :prologue_key=>nil}
+    #
+    #
+    # {:initialize=>
+    # {:prologue=>[:mode?],
+    #   :default_flag_config=>#<Object:0x00007ffe281666c8>,
+    #   :flag_configs=>nil,
+    #   :epilogue=>#<Object:0x00007ffe281666c8>,
+    #   :aliases=>{},
+    #   :program=>nil,
+    #   :file=>nil,
+    #   :prologue_set=>nil,
+    #   :flag_configs_set=>nil,
+    #   :epilogue_set=>nil}}
+    #  {:prologue=>[:mode?],
+    #  :result=>[:mode],
+    #  :required_prologue=>[],
+    #  :optional_prologue=>[:mode],
+    #  :prologue_key=>nil}
+    #
+    # {:epilogue=>:etc, :result=>nil}
+    # {:epilogue=>false, :result=>nil}
+    # {:epilogue=>true, :result=>nil}
+    # {:prologue=>[:mode?], :result=>[:mode]}
+    # {:prologue=>[:mode], :result=>[]}
+    # {:prologue=>true, :result=>nil}
+    it 'prologue' do
+      obj = described_class.new(prologue: [:mode?])
+      expect(obj.send(:initialize_epiprologue, :pro, [:mode?])).to eq([:mode])
+      expect(obj.required_prologue).to be_empty
+      expect(obj.optional_prologue).to eq([:mode])
+      expect(obj.prologue_key).to be_nil
+    end
+  end
+end
